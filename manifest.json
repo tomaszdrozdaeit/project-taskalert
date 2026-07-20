@@ -1,0 +1,26 @@
+{
+    "name": "TaskAlert — System Przypomnień",
+    "short_name": "TaskAlert",
+    "description": "Inteligentny system przypomnień i alertów terminowych — polisy, przeglądy, badania, szkolenia BHP",
+    "start_url": "/project-taskalert/",
+    "scope": "/project-taskalert/",
+    "display": "standalone",
+    "orientation": "any",
+    "theme_color": "#4f8cff",
+    "background_color": "#0f1219",
+    "lang": "pl-PL",
+    "icons": [
+        {
+            "src": "icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

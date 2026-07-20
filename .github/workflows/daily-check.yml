@@ -1,0 +1,27 @@
+name: TaskAlert Daily Email Check
+
+on:
+  schedule:
+    # Uruchamiaj codziennie o godzinie 07:00 UTC (09:00 czasem polskim)
+    - cron: '0 7 * * *'
+  workflow_dispatch: # Umożliwia ręczne uruchomienie w zakładce Actions na GitHubie
+
+jobs:
+  check-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install firebase-admin
+
+      - name: Run Daily Alert Check
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/daily_check.js

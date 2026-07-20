@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Profil użytkownika ──────────────────────────
+    // Użytkownik ma pełen dostęp tylko do swoich danych
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── Kategorie (globalne) ────────────────────────
+    // Odczyt: każdy zalogowany użytkownik
+    // Zapis: każdy zalogowany użytkownik (tworzenie nowych kategorii)
+    match /categories/{categoryId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Mail (Firebase Extension Trigger Email) ─────
+    // Zapis: każdy zalogowany użytkownik (wstawianie maili)
+    // Odczyt: brak (tylko Extension)
+    match /mail/{mailId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+  }
+}
