@@ -10,7 +10,9 @@ import {
     signOut,
     onAuthStateChanged,
     updateProfile,
-    sendPasswordResetEmail
+    sendPasswordResetEmail,
+    GoogleAuthProvider,
+    signInWithPopup
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
     doc, getDoc, setDoc, serverTimestamp
@@ -54,6 +56,14 @@ export async function registerUser(email, password, displayName) {
 // ── Logowanie (Email + Hasło) ───────────────────────────
 export async function loginUser(email, password) {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    await ensureUserProfile(cred.user);
+    return cred.user;
+}
+
+// ── Logowanie z Google ──────────────────────────────────
+export async function loginWithGoogle() {
+    const provider = new GoogleAuthProvider();
+    const cred = await signInWithPopup(auth, provider);
     await ensureUserProfile(cred.user);
     return cred.user;
 }

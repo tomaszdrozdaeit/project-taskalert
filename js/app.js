@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser } from './auth.js';
+import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle } from './auth.js';
 import { initDefaultCategories } from './db.js';
 
 // ============================================================
@@ -121,6 +121,24 @@ loginForm.addEventListener('submit', async (e) => {
         btn.classList.remove('loading');
     }
 });
+
+// ── Google Login Click ──────────────────────────────────
+const googleBtn = document.getElementById('google-login-btn');
+if (googleBtn) {
+    googleBtn.addEventListener('click', async () => {
+        googleBtn.classList.add('loading');
+        try {
+            await loginWithGoogle();
+            showToast('Zalogowano przez Google!', 'success');
+        } catch (err) {
+            console.error('[Auth] Google Login error:', err);
+            const msg = getAuthErrorMessage(err.code);
+            showToast(msg, 'error');
+        } finally {
+            googleBtn.classList.remove('loading');
+        }
+    });
+}
 
 // ── Register Form Submit ────────────────────────────────
 registerForm.addEventListener('submit', async (e) => {

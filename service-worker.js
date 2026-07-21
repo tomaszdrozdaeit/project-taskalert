@@ -1,8 +1,8 @@
 // ============================================================
-// SERVICE WORKER — TaskAlert PWA (cache v1)
+// SERVICE WORKER — TaskAlert PWA (cache v2)
 // ============================================================
 
-const CACHE_NAME = 'taskalert-v1';
+const CACHE_NAME = 'taskalert-v2';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',

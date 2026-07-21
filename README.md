@@ -9,7 +9,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 ## 🛠️ Stos Technologiczny
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
-- **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password).
+- **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In).
 - **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v1`.
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions (cron co 24h).
 - **Brak procesu budowania**: Projekt uruchamia się bezpośrednio z plików źródłowych (Firebase z CDN).
@@ -22,7 +22,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji
 ├── manifest.json              # Manifest PWA (instalacja na telefonie/pulpicie)
-├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v1)
+├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v2)
 ├── firestore.rules            # Reguły zabezpieczeń Firestore
 ├── plan_wdrozenia_taskalert_v3.pdf  # Oryginalny plan wdrożenia
 ├── icons/
