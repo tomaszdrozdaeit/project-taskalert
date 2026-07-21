@@ -4,7 +4,6 @@
 // ============================================================
 
 import { onRemindersChange, getCategories } from '../db.js';
-import { currentUser } from '../auth.js';
 
 let unsubscribe = null;
 

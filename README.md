@@ -10,7 +10,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In).
-- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v1`.
+- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v3`.
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions (cron co 24h).
 - **Brak procesu budowania**: Projekt uruchamia się bezpośrednio z plików źródłowych (Firebase z CDN).
 
@@ -22,7 +22,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji
 ├── manifest.json              # Manifest PWA (instalacja na telefonie/pulpicie)
-├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v2)
+├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v3)
 ├── firestore.rules            # Reguły zabezpieczeń Firestore
 ├── plan_wdrozenia_taskalert_v3.pdf  # Oryginalny plan wdrożenia
 ├── icons/
@@ -34,7 +34,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
     ├── firebase-config.js     # Konfiguracja połączenia z Firebase
     ├── auth.js                # Autoryzacja Email/Password (rejestracja, login, reset)
     ├── app.js                 # Router SPA, toasty, modale, helpery, FAB
-    ├── db.js                  # Warstwa dostępu do danych (Firestore CRUD)
+    ├── db.js                  # Warstwa dostępu do danych (Firestore CRUD — bezindeksowe filtrowanie/sortowanie, obsługa błędów real-time)
     └── modules/               # Niezależne moduły SPA (ładowane dynamicznie)
         ├── dashboard.js       # Pulpit z widgetami, timeline, chart SVG
         ├── samochody.js       # Alerty: polisy OC/AC, przeglądy techniczne
@@ -189,6 +189,8 @@ Dostęp do bazy danych regulują reguły **Cloud Firestore Security Rules** (`fi
 - Dane użytkownika (`/users/{uid}/**`) — pełny dostęp tylko dla właściciela UID.
 - Kategorie (`/categories/**`) — odczyt i zapis dla każdego zalogowanego użytkownika (globalne).
 - Kolekcja mail (`/mail/**`) — tylko zapis (trigger dla Firebase Extension).
+
+*Uwaga dotycząca zapytań*: Pobieranie przypomnień realizowane jest przez subkolekcje użytkownika, a filtrowanie po statusie oraz sortowanie chronologiczne wykonywane jest bezpiecznie po stronie klienta (JavaScript) z pełną obsługą błędów `onSnapshot`. Dzięki temu baza danych nie wymaga zdefiniowanych złożonych indeksów (composite indexes) w konsoli Firebase, co gwarantuje natychmiastowe ładowanie danych i zapobiega zapętlaniu się spinnera ładowania.
 
 **Autoryzacja**: Email/Password (Firebase Authentication) — kompatybilna z urządzeniami Apple.
 

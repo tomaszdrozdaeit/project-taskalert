@@ -16,11 +16,28 @@ function uid() {
 }
 
 function userCol(path) {
-    return collection(db, 'users', uid(), path);
+    const currentUid = uid();
+    if (!currentUid) {
+        console.warn(`[DB] Brak zalogowanego użytkownika przy dostępie do 'users/{uid}/${path}'`);
+        return null;
+    }
+    return collection(db, 'users', currentUid, path);
 }
 
 function userDoc(path, id) {
-    return doc(db, 'users', uid(), path, id);
+    const currentUid = uid();
+    if (!currentUid) {
+        throw new Error('Użytkownik nie jest zalogowany.');
+    }
+    return doc(db, 'users', currentUid, path, id);
+}
+
+// Helper do bezpiecznej konwersji daty
+function parseDate(d) {
+    if (!d) return new Date(0);
+    if (d.toDate && typeof d.toDate === 'function') return d.toDate();
+    if (d instanceof Date) return d;
+    return new Date(d);
 }
 
 // ============================================================
@@ -93,23 +110,27 @@ export async function initDefaultCategories() {
 // Pobierz kategorie (globalne) — z uwzględnieniem user visibility
 export async function getCategories() {
     const categoriesRef = collection(db, GLOBAL_CATEGORIES_COL);
-    const q = query(categoriesRef, orderBy('order', 'asc'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const snap = await getDocs(categoriesRef);
+    const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return cats.sort((a, b) => (a.order || 0) - (b.order || 0));
 }
 
 // Nasłuchuj zmian w kategoriach (real-time)
 export function onCategoriesChange(callback) {
     const categoriesRef = collection(db, GLOBAL_CATEGORIES_COL);
-    const q = query(categoriesRef, orderBy('order', 'asc'));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(categoriesRef, (snap) => {
         const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        cats.sort((a, b) => (a.order || 0) - (b.order || 0));
         callback(cats);
+    }, (err) => {
+        console.error('[DB] Błąd nasłuchiwania kategorii:', err);
+        callback([]);
     });
 }
 
 // Pobierz widoczność kategorii dla użytkownika
 export async function getUserCategoryVisibility() {
+    if (!uid()) return {};
     const visRef = doc(db, 'users', uid(), 'settings', 'categoryVisibility');
     const snap = await getDoc(visRef);
     return snap.exists() ? snap.data() : {};
@@ -117,6 +138,7 @@ export async function getUserCategoryVisibility() {
 
 // Ustaw widoczność kategorii
 export async function setCategoryVisibility(categoryId, visible) {
+    if (!uid()) return;
     const visRef = doc(db, 'users', uid(), 'settings', 'categoryVisibility');
     await setDoc(visRef, { [categoryId]: visible }, { merge: true });
 }
@@ -170,6 +192,8 @@ function buildAlertFlags(alertDays) {
 // Dodaj nowe przypomnienie
 export async function addReminder(data) {
     const remindersRef = userCol('reminders');
+    if (!remindersRef) throw new Error('Użytkownik nie jest zalogowany.');
+
     const alertDays = data.alertDays || [30, 14];
 
     const reminderData = {
@@ -266,36 +290,55 @@ export async function markAsExecuted(id, executedDate, nextExpiryDate, note = ''
 // Pobierz aktywne przypomnienia
 export async function getActiveReminders() {
     const remindersRef = userCol('reminders');
-    const q = query(remindersRef, where('status', '==', 'active'), orderBy('expiryDate', 'asc'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!remindersRef) return [];
+    const snap = await getDocs(remindersRef);
+    const reminders = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(r => r.status === 'active');
+    return reminders.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
 }
 
-// Nasłuchuj zmian w aktywnych przypomnieniach (real-time)
+// Nasłuchuj zmian w przypomnieniach (real-time) bez wymogu indeksów złożonych
 export function onRemindersChange(callback, statusFilter = 'active') {
     const remindersRef = userCol('reminders');
-    let q;
-    if (statusFilter === 'all') {
-        q = query(remindersRef, orderBy('expiryDate', 'asc'));
-    } else {
-        q = query(remindersRef, where('status', '==', statusFilter), orderBy('expiryDate', 'asc'));
+    if (!remindersRef) {
+        callback([]);
+        return () => {};
     }
-    return onSnapshot(q, (snap) => {
-        const reminders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    return onSnapshot(remindersRef, (snap) => {
+        let reminders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        if (statusFilter !== 'all') {
+            reminders = reminders.filter(r => r.status === statusFilter);
+        }
+
+        reminders.sort((a, b) => {
+            if (statusFilter === 'completed') {
+                const dateA = parseDate(a.updatedAt || a.lastExecutedAt);
+                const dateB = parseDate(b.updatedAt || b.lastExecutedAt);
+                return dateB - dateA;
+            } else {
+                return parseDate(a.expiryDate) - parseDate(b.expiryDate);
+            }
+        });
+
         callback(reminders);
+    }, (err) => {
+        console.error('[DB] Błąd podczas nasłuchiwania przypomnień:', err);
+        callback([]);
     });
 }
 
 // Pobierz przypomnienia po kategorii
 export async function getRemindersByCategory(categoryId) {
     const remindersRef = userCol('reminders');
-    const q = query(remindersRef,
-        where('status', '==', 'active'),
-        where('categoryId', '==', categoryId),
-        orderBy('expiryDate', 'asc')
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!remindersRef) return [];
+    const snap = await getDocs(remindersRef);
+    const reminders = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(r => r.status === 'active' && r.categoryId === categoryId);
+    return reminders.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
 }
 
 // Pobierz nadchodzące alerty (w ciągu N dni)
@@ -306,7 +349,7 @@ export async function getUpcomingAlerts(daysAhead = 30) {
     const target = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
 
     return reminders.filter(r => {
-        const expiry = r.expiryDate?.toDate ? r.expiryDate.toDate() : new Date(r.expiryDate);
+        const expiry = parseDate(r.expiryDate);
         return expiry <= target;
     });
 }
@@ -318,7 +361,7 @@ export async function getOverdueReminders() {
     now.setHours(0, 0, 0, 0);
 
     return reminders.filter(r => {
-        const expiry = r.expiryDate?.toDate ? r.expiryDate.toDate() : new Date(r.expiryDate);
+        const expiry = parseDate(r.expiryDate);
         return expiry < now;
     });
 }
@@ -326,9 +369,12 @@ export async function getOverdueReminders() {
 // Pobierz zakończone (historia)
 export async function getCompletedReminders() {
     const remindersRef = userCol('reminders');
-    const q = query(remindersRef, where('status', '==', 'completed'), orderBy('updatedAt', 'desc'));
-    const snap = await getDocs(q);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (!remindersRef) return [];
+    const snap = await getDocs(remindersRef);
+    const reminders = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(r => r.status === 'completed');
+    return reminders.sort((a, b) => parseDate(b.updatedAt || b.lastExecutedAt) - parseDate(a.updatedAt || a.lastExecutedAt));
 }
 
 // Pobierz jedno przypomnienie
@@ -342,11 +388,13 @@ export async function getReminder(id) {
 // USER PROFILE
 // ============================================================
 export async function updateUserProfile(data) {
+    if (!uid()) throw new Error('Użytkownik nie jest zalogowany.');
     const profileRef = doc(db, 'users', uid(), 'profile', 'main');
     await setDoc(profileRef, { ...data, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function getUserProfile() {
+    if (!uid()) return null;
     const profileRef = doc(db, 'users', uid(), 'profile', 'main');
     const snap = await getDoc(profileRef);
     return snap.exists() ? snap.data() : null;
