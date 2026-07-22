@@ -97,8 +97,17 @@ export function render() {
 }
 
 export function init() {
-    // Nasłuchuj zmian w przypomnieniach (real-time)
     unsubscribe = onRemindersChange(updateDashboard, 'active');
+
+    const timeline = document.getElementById('dash-timeline');
+    if (timeline) {
+        timeline.addEventListener('click', (e) => {
+            const card = e.target.closest('.reminder-card');
+            if (card && card.dataset.id) {
+                window.TaskAlert.showReminderDetailsModal(card.dataset.id);
+            }
+        });
+    }
 
     return () => {
         if (unsubscribe) unsubscribe();

@@ -5,15 +5,31 @@
 
 const admin = require('firebase-admin');
 
-// Inicjalizacja Firebase Admin SDK z Service Account (podanym w zmiennej środowiskowej FIREBASE_SERVICE_ACCOUNT)
-if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
+// Inicjalizacja Firebase Admin SDK z Service Account
+const serviceAccountRaw = process.env.FIREBASE_SERVICE_ACCOUNT ? process.env.FIREBASE_SERVICE_ACCOUNT.trim() : '';
+
+if (serviceAccountRaw) {
+    try {
+        const serviceAccount = JSON.parse(serviceAccountRaw);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+            projectId: serviceAccount.project_id || 'taskalert-app-8d45d'
+        });
+        console.log('[DailyCheck] Połączono z Firebase używając podanego FIREBASE_SERVICE_ACCOUNT.');
+    } catch (err) {
+        console.error('[DailyCheck] Błąd parsowania FIREBASE_SERVICE_ACCOUNT:', err.message);
+        process.exit(1);
+    }
 } else {
-    // Domyślna inicjalizacja (gdy uruchamiane w środowisku z ADC)
-    admin.initializeApp();
+    console.error('================================================================');
+    console.error('[DailyCheck] BŁĄD KONFIGURACJI: Brak zmiennej FIREBASE_SERVICE_ACCOUNT!');
+    console.error('Aby automatyczne sprawdzanie alertów w GitHub Actions działało:');
+    console.error('1. Przejdź do konsoli Firebase -> Project Settings -> Service Accounts.');
+    console.error('2. Wygeneruj nowy klucz prywatny (JSON).');
+    console.error('3. Przejdź do GitHub -> Settings -> Secrets and variables -> Actions.');
+    console.error('4. Utwórz sekret "FIREBASE_SERVICE_ACCOUNT" i wklej zawartość pliku JSON.');
+    console.error('================================================================');
+    process.exit(1);
 }
 
 const db = admin.firestore();

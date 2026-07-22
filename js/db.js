@@ -404,17 +404,19 @@ export async function getUserProfile() {
 // MAIL TRIGGER (for Firebase Extension "Trigger Email")
 // ============================================================
 export async function sendManualNotification(reminder) {
-    // Wstawia dokument do kolekcji 'mail/' co triggeruje Firebase Extension
+    const rawRecipients = [reminder.primaryEmail, reminder.secondaryEmail];
+    const recipients = rawRecipients.filter(e => e && typeof e === 'string' && e.includes('@'));
+
+    if (recipients.length === 0) {
+        throw new Error('Brak prawidłowego adresu e-mail odbiorcy w tym przypomnieniu.');
+    }
+
     const mailRef = collection(db, 'mail');
-    const recipients = [reminder.primaryEmail];
-    if (reminder.secondaryEmail) recipients.push(reminder.secondaryEmail);
+    const expiryDate = parseDate(reminder.expiryDate).toLocaleDateString('pl-PL');
 
-    const expiryDate = reminder.expiryDate?.toDate
-        ? reminder.expiryDate.toDate().toLocaleDateString('pl-PL')
-        : 'nieznana';
-
-    await addDoc(mailRef, {
+    const docRef = await addDoc(mailRef, {
         to: recipients,
+        createdAt: serverTimestamp(),
         message: {
             subject: `⏰ TaskAlert: ${reminder.title} — termin: ${expiryDate}`,
             html: `
@@ -429,9 +431,11 @@ export async function sendManualNotification(reminder) {
                             <p style="margin: 0; color: #1a1f2e;"><strong>📅 Data wygaśnięcia:</strong> ${expiryDate}</p>
                             ${reminder.notes ? `<p style="margin: 12px 0 0; color: #64748b;">📝 ${reminder.notes}</p>` : ''}
                         </div>
-                        <p style="color: #94a3b8; font-size: 12px; margin: 16px 0 0;">Wysłano ręcznie z systemu TaskAlert</p>
+                        <p style="color: #94a3b8; font-size: 12px; margin: 16px 0 0;">Wysłano z systemu TaskAlert</p>
                     </div>
                 </div>`
         }
     });
+
+    return { id: docRef.id, recipients };
 }

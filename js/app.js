@@ -232,6 +232,9 @@ onAuthChange(async (user) => {
         // Inicjalizuj domyślne kategorie (jeśli brak)
         await initDefaultCategories();
 
+        // Renderuj dynamiczne menu kategorii
+        renderSidebarCategories();
+
         // Nawiguj do strony z hash lub dashboard
         navigateFromHash();
     } else {
@@ -241,6 +244,51 @@ onAuthChange(async (user) => {
         switchAuthMode('login');
     }
 });
+
+// ============================================================
+// DYNAMIC SIDEBAR CATEGORIES
+// ============================================================
+async function renderSidebarCategories() {
+    const container = document.getElementById('sidebar-categories-list');
+    if (!container) return;
+
+    try {
+        const { getCategories, getUserCategoryVisibility } = await import('./db.js');
+        const categories = await getCategories();
+        const visibility = await getUserCategoryVisibility();
+
+        const visibleCats = categories.filter(c => visibility[c.id] !== false);
+
+        if (visibleCats.length === 0) {
+            container.innerHTML = `<div style="padding:8px 12px;font-size:0.8rem;color:var(--text-muted);">Brak kategorii</div>`;
+            return;
+        }
+
+        container.innerHTML = visibleCats.map(cat => {
+            let pageKey = 'inne';
+            if (cat.name === 'Samochody') pageKey = 'samochody';
+            else if (cat.name === 'Kadry') pageKey = 'kadry';
+            else if (cat.name === 'Inne') pageKey = 'inne';
+            else pageKey = `cat-${cat.id}`;
+
+            return `
+            <a href="#${pageKey}" class="nav-item" data-page="${pageKey}" data-cat-id="${cat.id}">
+                <span class="nav-icon" style="font-size:1.2rem;line-height:1;">${cat.icon || '📋'}</span>
+                <span>${escHtml(cat.name)}</span>
+            </a>`;
+        }).join('');
+
+        if (currentPage) {
+            sidebarNav.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.page === currentPage);
+            });
+        }
+    } catch (err) {
+        console.error('[Sidebar] Błąd renderowania kategorii:', err);
+    }
+}
+
+window.addEventListener('taskalert-categories-changed', renderSidebarCategories);
 
 // ============================================================
 // SPA ROUTER (Hash-based z lazy-loadingiem)
@@ -263,7 +311,16 @@ async function navigateTo(page) {
     if (!currentUser) return;
     if (page === currentPage) return;
 
-    const route = ROUTES[page];
+    let route = ROUTES[page];
+    let isCustomCategory = false;
+    let customCatId = null;
+
+    if (!route && page.startsWith('cat-')) {
+        customCatId = page.replace('cat-', '');
+        isCustomCategory = true;
+        route = { file: './modules/inne.js', title: 'Kategoria' };
+    }
+
     if (!route) {
         page = 'dashboard';
         return navigateTo(page);
@@ -284,17 +341,14 @@ async function navigateTo(page) {
         item.classList.toggle('active', item.dataset.page === page);
     });
 
-    // Update document title
     document.title = `${route.title} — TaskAlert`;
 
     try {
-        // Lazy load modułu
-        if (!moduleCache[page]) {
-            moduleCache[page] = await import(route.file);
+        if (!moduleCache[route.file]) {
+            moduleCache[route.file] = await import(route.file);
         }
-        const mod = moduleCache[page];
+        const mod = moduleCache[route.file];
 
-        // Renderuj stronę
         appContent.innerHTML = '';
         if (mod.render) {
             const html = mod.render();
@@ -303,9 +357,8 @@ async function navigateTo(page) {
             }
         }
 
-        // Inicjalizuj logikę modułu
         if (mod.init) {
-            currentModuleCleanup = await mod.init() || null;
+            currentModuleCleanup = await mod.init(customCatId) || null;
         }
 
         currentPage = page;
@@ -320,7 +373,6 @@ async function navigateTo(page) {
             </div>`;
     }
 
-    // Zamknij sidebar na mobile
     closeSidebar();
 }
 
@@ -364,7 +416,6 @@ sidebarOverlay.addEventListener('click', closeSidebar);
 // FAB — Szybkie dodawanie przypomnienia
 // ============================================================
 fabAdd.addEventListener('click', () => {
-    // Otwórz modal szybkiego dodawania niezależnie od aktualnej strony
     showAddReminderModal();
 });
 
@@ -394,7 +445,6 @@ export function showToast(message, type = 'info', options = {}) {
 
     toast.innerHTML = html;
 
-    // Zamknij toast
     const closeBtn = toast.querySelector('.toast-close');
     const dismiss = () => {
         toast.classList.add('toast-out');
@@ -402,7 +452,6 @@ export function showToast(message, type = 'info', options = {}) {
     };
     closeBtn.addEventListener('click', dismiss);
 
-    // Undo callback
     if (options.undoCallback) {
         toast.querySelector('.toast-undo').addEventListener('click', () => {
             options.undoCallback();
@@ -412,7 +461,6 @@ export function showToast(message, type = 'info', options = {}) {
 
     toastContainer.appendChild(toast);
 
-    // Auto-dismiss
     const duration = options.duration || 5000;
     if (duration > 0) {
         setTimeout(dismiss, duration);
@@ -469,7 +517,6 @@ modalOverlay.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeModal();
-        // Zamknij confirm dialog jeśli otwarty
         const confirm = document.querySelector('.confirm-overlay');
         if (confirm) confirm.remove();
     }
@@ -483,11 +530,7 @@ export function showConfirm(message, title = 'Potwierdzenie', { type = 'warning'
         const overlay = document.createElement('div');
         overlay.className = 'confirm-overlay';
 
-        const icons = {
-            warning: '⚠️',
-            danger:  '🗑️',
-            info:    'ℹ️'
-        };
+        const icons = { warning: '⚠️', danger: '🗑️', info: 'ℹ️' };
 
         overlay.innerHTML = `
             <div class="confirm-dialog">
@@ -515,6 +558,328 @@ export function showConfirm(message, title = 'Potwierdzenie', { type = 'warning'
         overlay.querySelector('.confirm-ok').focus();
     });
 }
+
+// ============================================================
+// REMINDER DETAILS & EDIT MODAL (Central Dialog)
+// ============================================================
+export async function showReminderDetailsModal(reminderId, reminderData) {
+    const { getReminder, getCategories, updateReminder, deleteReminder, sendManualNotification } = await import('./db.js');
+
+    let reminder = reminderData || await getReminder(reminderId);
+    if (!reminder) {
+        showToast('Nie znaleziono przypomnienia.', 'error');
+        return;
+    }
+
+    const categories = await getCategories();
+    const days = daysUntil(reminder.expiryDate);
+    const statusCls = getAlertStatus(days);
+    const countdownText = getCountdownText(days);
+
+    const historyHtml = (reminder.history || []).slice(-5).reverse().map(h => `
+        <div style="font-size:0.8rem;color:var(--text-secondary);padding:6px 0;border-top:1px solid var(--border-light);">
+            ✅ Wykonano: <strong>${formatDate(h.executedAt)}</strong>
+            ${h.newExpiry ? ` → Następny termin: <strong>${formatDate(h.newExpiry)}</strong>` : ' (zamknięte)'}
+            ${h.note ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">📝 ${escHtml(h.note)}</div>` : ''}
+        </div>
+    `).join('') || '<div style="font-size:0.8rem;color:var(--text-muted);padding:8px 0;">Brak historii wykonania</div>';
+
+    const defaultAlertDays = reminder.alertDays || [30, 14];
+    const alertChipsHtml = defaultAlertDays.map(d =>
+        `<span class="alert-chip" data-days="${d}">${d} dni <button class="chip-remove" type="button">×</button></span>`
+    ).join('');
+
+    const expiryDateIso = reminder.expiryDate?.toDate
+        ? reminder.expiryDate.toDate().toISOString().split('T')[0]
+        : (typeof reminder.expiryDate === 'string' ? reminder.expiryDate.split('T')[0] : '');
+
+    showModal({
+        title: `📌 Szczegóły: ${reminder.title}`,
+        wide: true,
+        body: `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--bg-card-hover);">
+                <div>
+                    <span class="category-badge" style="font-size:0.85rem;">${escHtml(reminder.categoryName || 'Inne')}</span>
+                    <span style="font-size:0.85rem;color:var(--text-muted);margin-left:8px;">${escHtml(reminder.subTypeLabel || reminder.subType || '')}</span>
+                </div>
+                <div class="reminder-countdown countdown-${statusCls}">${countdownText}</div>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-title">Tytuł *</label>
+                <input type="text" id="edit-title" value="${escHtml(reminder.title)}" required>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-category">Kategoria *</label>
+                    <select id="edit-category" class="filter-select w-full">
+                        ${categories.map(c => `<option value="${c.id}" ${c.id === reminder.categoryId || c.name === reminder.categoryName ? 'selected' : ''}>${escHtml(c.icon || '📋')} ${escHtml(c.name)}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="edit-subtype">Tag / Podtyp</label>
+                    <select id="edit-subtype" class="filter-select w-full"></select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-expiry">Data wygaśnięcia *</label>
+                    <input type="date" id="edit-expiry" value="${expiryDateIso}" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit-recurrence">Interwał powtarzania (mies.)</label>
+                    <input type="number" id="edit-recurrence" value="${reminder.recurrenceMonths || 0}" min="0" max="120">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Alerty (dni przed terminem)</label>
+                <div class="alert-chips" id="edit-alert-chips">
+                    ${alertChipsHtml}
+                    <button class="alert-chip-add" type="button" id="edit-alert-chip-btn">+ Dodaj alert</button>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="edit-email1">E-mail główny</label>
+                    <input type="email" id="edit-email1" value="${escHtml(reminder.primaryEmail || '')}">
+                </div>
+                <div class="form-group">
+                    <label for="edit-email2">E-mail dodatkowy</label>
+                    <input type="email" id="edit-email2" value="${escHtml(reminder.secondaryEmail || '')}">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="edit-notes">Notatki / Opis</label>
+                <textarea id="edit-notes" placeholder="Dodatkowe informacje...">${escHtml(reminder.notes || reminder.description || '')}</textarea>
+            </div>
+
+            <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-color);">
+                <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:8px;">📜 Historia wykonania</h4>
+                <div>${historyHtml}</div>
+            </div>`,
+        footer: `
+            <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;justify-content:space-between;">
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-ghost text-danger" id="modal-delete-btn" type="button">🗑️ Usuń</button>
+                    <button class="btn btn-secondary" id="modal-mail-btn" type="button">✉️ Wyślij e-mail</button>
+                    <button class="btn btn-secondary" id="modal-execute-btn" type="button">✅ Wykonaj</button>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-secondary" id="modal-close-btn" type="button">Anuluj</button>
+                    <button class="btn btn-primary" id="modal-save-btn" type="button">💾 Zapisz</button>
+                </div>
+            </div>`,
+        onOpen: (body, footer) => {
+            const catSelect = body.querySelector('#edit-category');
+            const subSelect = body.querySelector('#edit-subtype');
+
+            const populateSubtypes = () => {
+                const selectedCat = categories.find(c => c.id === catSelect.value || c.name === catSelect.value);
+                updateSubtypeOptions(subSelect, selectedCat);
+                if (reminder.subType) subSelect.value = reminder.subType;
+            };
+            catSelect.addEventListener('change', populateSubtypes);
+            populateSubtypes();
+
+            const chipsContainer = body.querySelector('#edit-alert-chips');
+            body.querySelector('#edit-alert-chip-btn').addEventListener('click', () => {
+                const val = prompt('Ile dni przed terminem wysłać alert?');
+                if (val && !isNaN(val) && parseInt(val) > 0) {
+                    const chip = document.createElement('span');
+                    chip.className = 'alert-chip';
+                    chip.dataset.days = parseInt(val);
+                    chip.innerHTML = `${parseInt(val)} dni <button class="chip-remove" type="button">×</button>`;
+                    chipsContainer.insertBefore(chip, body.querySelector('#edit-alert-chip-btn'));
+                }
+            });
+            chipsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('chip-remove')) {
+                    e.target.closest('.alert-chip').remove();
+                }
+            });
+
+            footer.querySelector('#modal-close-btn').addEventListener('click', closeModal);
+
+            footer.querySelector('#modal-mail-btn').addEventListener('click', async () => {
+                try {
+                    await sendManualNotification(reminder);
+                    showToast(`Powiadomienie e-mail zostało wysłane do: ${reminder.primaryEmail}${reminder.secondaryEmail ? ', ' + reminder.secondaryEmail : ''}`, 'success');
+                } catch (err) {
+                    showToast('Błąd wysyłania e-maila: ' + err.message, 'error');
+                }
+            });
+
+            footer.querySelector('#modal-execute-btn').addEventListener('click', () => {
+                closeModal();
+                showExecuteModal(reminder);
+            });
+
+            footer.querySelector('#modal-delete-btn').addEventListener('click', async () => {
+                const confirmed = await showConfirm(`Czy na pewno chcesz usunąć przypomnienie "${reminder.title}"?`, 'Usuń przypomnienie', { type: 'danger', confirmText: 'Usuń' });
+                if (confirmed) {
+                    try {
+                        await deleteReminder(reminder.id);
+                        showToast('Przypomnienie usunięte.', 'success');
+                        closeModal();
+                        refreshCurrentPage();
+                    } catch (err) {
+                        showToast('Błąd: ' + err.message, 'error');
+                    }
+                }
+            });
+
+            footer.querySelector('#modal-save-btn').addEventListener('click', async () => {
+                const title = body.querySelector('#edit-title').value.trim();
+                const categoryId = catSelect.value;
+                const subType = subSelect.value;
+                const expiryStr = body.querySelector('#edit-expiry').value;
+                const recurrence = parseInt(body.querySelector('#edit-recurrence').value) || 0;
+                const email1 = body.querySelector('#edit-email1').value.trim();
+                const email2 = body.querySelector('#edit-email2').value.trim();
+                const notes = body.querySelector('#edit-notes').value.trim();
+
+                if (!title) { showToast('Podaj tytuł.', 'warning'); return; }
+                if (!expiryStr) { showToast('Podaj datę wygaśnięcia.', 'warning'); return; }
+
+                const chips = chipsContainer.querySelectorAll('.alert-chip');
+                const alertDays = Array.from(chips).map(c => parseInt(c.dataset.days)).filter(d => d > 0);
+                alertDays.sort((a, b) => b - a);
+
+                const catObj = categories.find(c => c.id === categoryId);
+                const subTypeLabel = subSelect.options[subSelect.selectedIndex]?.text || subType;
+
+                const saveBtn = footer.querySelector('#modal-save-btn');
+                saveBtn.classList.add('loading');
+
+                try {
+                    await updateReminder(reminder.id, {
+                        title,
+                        categoryId,
+                        categoryName: catObj?.name || reminder.categoryName || '',
+                        subType,
+                        subTypeLabel,
+                        expiryDate: new Date(expiryStr),
+                        recurrenceMonths: recurrence,
+                        alertDays,
+                        primaryEmail: email1,
+                        secondaryEmail: email2,
+                        notes,
+                        description: notes
+                    });
+
+                    showToast('Przypomnienie zaktualizowane!', 'success');
+                    closeModal();
+                    refreshCurrentPage();
+                } catch (err) {
+                    showToast('Błąd zapisu: ' + err.message, 'error');
+                } finally {
+                    saveBtn.classList.remove('loading');
+                }
+            });
+        }
+    });
+}
+
+function showExecuteModal(reminder) {
+    const today = new Date().toISOString().split('T')[0];
+    let nextDateDefault = '';
+    if (reminder.recurrenceMonths > 0) {
+        const exp = reminder.expiryDate?.toDate ? reminder.expiryDate.toDate() : new Date(reminder.expiryDate);
+        const next = new Date(exp);
+        next.setMonth(next.getMonth() + reminder.recurrenceMonths);
+        nextDateDefault = next.toISOString().split('T')[0];
+    }
+
+    showModal({
+        title: `✅ Oznacz jako wykonane: ${reminder.title}`,
+        body: `
+            <p style="color:var(--text-secondary);margin-bottom:16px;">Zapisz datę wykonania i opcjonalnie notatkę oraz nowy termin.</p>
+            <div class="form-group">
+                <label for="exec-date">Data wykonania *</label>
+                <input type="date" id="exec-date" value="${today}" required>
+            </div>
+            ${reminder.recurrenceMonths > 0 ? `
+            <div class="form-group">
+                <label for="exec-next">Następna data wygaśnięcia</label>
+                <input type="date" id="exec-next" value="${nextDateDefault}">
+                <small style="color:var(--text-muted);font-size:0.78rem;">Auto-kalkulacja: +${reminder.recurrenceMonths} mies.</small>
+            </div>` : `
+            <div class="form-group">
+                <label for="exec-next">Następna data (opcj. — puste = zamknij)</label>
+                <input type="date" id="exec-next" value="">
+            </div>`}
+            <div class="form-group">
+                <label for="exec-note">Komentarz / Notatka (opcjonalnie)</label>
+                <textarea id="exec-note" placeholder="np. Polisa odnowiona w PZU..."></textarea>
+            </div>`,
+        footer: `
+            <button class="btn btn-secondary" onclick="window.TaskAlert.closeModal()">Anuluj</button>
+            <button class="btn btn-primary" id="exec-save-btn">Zapisz wykonanie</button>`,
+        onOpen: (body, footer) => {
+            footer.querySelector('#exec-save-btn').addEventListener('click', async () => {
+                const execDateStr = body.querySelector('#exec-date').value;
+                const nextDateStr = body.querySelector('#exec-next').value;
+                const note = body.querySelector('#exec-note').value.trim();
+
+                if (!execDateStr) { showToast('Podaj datę wykonania.', 'warning'); return; }
+
+                const execDate = new Date(execDateStr);
+                const nextDate = nextDateStr ? new Date(nextDateStr) : null;
+
+                const saveBtn = footer.querySelector('#exec-save-btn');
+                saveBtn.classList.add('loading');
+
+                try {
+                    const { markAsExecuted } = await import('./db.js');
+                    await markAsExecuted(reminder.id, execDate, nextDate, note);
+                    showToast('Przypomnienie oznaczone jako wykonane!', 'success');
+                    closeModal();
+                    refreshCurrentPage();
+                } catch (err) {
+                    showToast('Błąd: ' + err.message, 'error');
+                } finally {
+                    saveBtn.classList.remove('loading');
+                }
+            });
+        }
+    });
+}
+
+function refreshCurrentPage() {
+    if (currentPage && moduleCache[currentPage]?.refresh) {
+        moduleCache[currentPage].refresh();
+    }
+}
+
+// Global action handlers attached to window
+window.handleEdit = (id) => showReminderDetailsModal(id);
+window.handleDelete = async (id, title) => {
+    const { deleteReminder } = await import('./db.js');
+    const confirmed = await showConfirm(`Czy na pewno chcesz usunąć "${title || 'przypomnienie'}"?`, 'Usuń', { type: 'danger', confirmText: 'Usuń' });
+    if (confirmed) {
+        await deleteReminder(id);
+        showToast('Przypomnienie usunięte.', 'success');
+        refreshCurrentPage();
+    }
+};
+window.handleExecute = async (id) => {
+    const { getReminder } = await import('./db.js');
+    const r = await getReminder(id);
+    if (r) showExecuteModal(r);
+};
+window.handleSendNotification = async (id) => {
+    const { getReminder, sendManualNotification } = await import('./db.js');
+    const r = await getReminder(id);
+    if (r) {
+        await sendManualNotification(r);
+        showToast(`Powiadomienie e-mail zostało wysłane do: ${r.primaryEmail}${r.secondaryEmail ? ', ' + r.secondaryEmail : ''}`, 'success');
+    }
+};
 
 // ============================================================
 // ADD REMINDER MODAL (Quick Add from FAB)
@@ -720,6 +1085,8 @@ window.TaskAlert = {
     closeModal,
     showConfirm,
     showAddReminderModal,
+    showReminderDetailsModal,
+    showExecuteModal,
     escHtml,
     navigateTo
 };

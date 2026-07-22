@@ -60,6 +60,16 @@ export function init() {
     if (filterStatus) filterStatus.addEventListener('change', renderList);
     if (filterSubtype) filterSubtype.addEventListener('change', renderList);
 
+    const listEl = document.getElementById('reminders-list-kadry');
+    if (listEl) {
+        listEl.addEventListener('click', (e) => {
+            const card = e.target.closest('.reminder-card');
+            if (card && card.dataset.id) {
+                window.TaskAlert.showReminderDetailsModal(card.dataset.id);
+            }
+        });
+    }
+
     return () => { if (unsubscribe) unsubscribe(); };
 }
 

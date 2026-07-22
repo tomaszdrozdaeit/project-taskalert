@@ -78,7 +78,7 @@ function renderGrid() {
                 </div>
             </div>
             <div style="margin-bottom:12px;">
-                <span style="font-size:0.78rem;color:var(--text-secondary);font-weight:600;">Podtypy:</span>
+                <span style="font-size:0.78rem;color:var(--text-secondary);font-weight:600;">Tagi:</span>
                 <div class="alert-chips" style="margin-top:6px;">${subTypesHtml || '<span class="text-muted" style="font-size:0.8rem;">Brak</span>'}</div>
             </div>
             <div class="flex items-center gap-2" style="justify-content:flex-end;">
@@ -96,6 +96,28 @@ function renderGrid() {
     }).join('');
 }
 
+const PRESET_ICONS = [
+    { icon: '🚗', label: '🚗 Samochody / Pojazdy' },
+    { icon: '👷', label: '👷 Kadry / Pracownicy' },
+    { icon: '📋', label: '📋 Inne / Ogólne' },
+    { icon: '🏠', label: '🏠 Nieruchomości / Budynki' },
+    { icon: '💻', label: '💻 Sprzęt IT' },
+    { icon: '🩺', label: '🩺 Badania / Zdrowie' },
+    { icon: '✈️', label: '✈️ Podróże / Delegacje' },
+    { icon: '🔑', label: '🔑 Licencje / Uprawnienia' },
+    { icon: '🎓', label: '🎓 Szkolenia / Certyfikaty' },
+    { icon: '⚡', label: '⚡ Media / Usługi' },
+    { icon: '📦', label: '📦 Magazyn / Dostawy' },
+    { icon: '🛠️', label: '🛠️ Warsztat / Serwis' }
+];
+
+function renderIconSelect(id, selectedIcon) {
+    const options = PRESET_ICONS.map(i =>
+        `<option value="${i.icon}" ${i.icon === selectedIcon ? 'selected' : ''}>${escHtml(i.label)}</option>`
+    ).join('');
+    return `<select id="${id}" class="filter-select w-full">${options}</select>`;
+}
+
 function showAddCategoryModal() {
     window.TaskAlert.showModal({
         title: 'Nowa kategoria',
@@ -107,7 +129,7 @@ function showAddCategoryModal() {
             <div class="form-row">
                 <div class="form-group">
                     <label for="cat-icon">Ikona (emoji)</label>
-                    <input type="text" id="cat-icon" value="📋" maxlength="2" style="text-align:center;font-size:1.3rem;">
+                    ${renderIconSelect('cat-icon', '📋')}
                 </div>
                 <div class="form-group">
                     <label for="cat-color">Kolor</label>
@@ -115,10 +137,10 @@ function showAddCategoryModal() {
                 </div>
             </div>
             <div class="form-group">
-                <label>Podtypy (opcjonalne)</label>
+                <label>Tagi (opcjonalne)</label>
                 <div id="cat-subtypes">
                     <div class="flex items-center gap-2 mb-4">
-                        <input type="text" class="subtype-input" placeholder="Nazwa podtypu" style="flex:1;">
+                        <input type="text" class="subtype-input" placeholder="Nazwa tagu" style="flex:1;">
                         <button class="btn btn-sm btn-ghost" type="button" onclick="addSubtypeRow()">+</button>
                     </div>
                 </div>
@@ -132,7 +154,7 @@ function showAddCategoryModal() {
                 const row = document.createElement('div');
                 row.className = 'flex items-center gap-2 mb-4';
                 row.innerHTML = `
-                    <input type="text" class="subtype-input" placeholder="Nazwa podtypu" style="flex:1;">
+                    <input type="text" class="subtype-input" placeholder="Nazwa tagu" style="flex:1;">
                     <button class="btn btn-sm btn-ghost text-danger" type="button" onclick="this.parentElement.remove()">×</button>`;
                 container.appendChild(row);
             };
@@ -141,7 +163,7 @@ function showAddCategoryModal() {
                 const name = body.querySelector('#cat-name').value.trim();
                 if (!name) { window.TaskAlert.showToast('Podaj nazwę kategorii.', 'warning'); return; }
 
-                const icon = body.querySelector('#cat-icon').value.trim() || '📋';
+                const icon = body.querySelector('#cat-icon').value || '📋';
                 const color = body.querySelector('#cat-color').value;
                 const subtypeInputs = body.querySelectorAll('.subtype-input');
                 const subTypes = Array.from(subtypeInputs)
@@ -158,6 +180,7 @@ function showAddCategoryModal() {
                     await addCategory({ name, icon, color, subTypes });
                     window.TaskAlert.showToast(`Kategoria "${name}" utworzona!`, 'success');
                     window.TaskAlert.closeModal();
+                    window.dispatchEvent(new Event('taskalert-categories-changed'));
                 } catch (err) {
                     window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
                 }
@@ -186,7 +209,7 @@ window.handleEditCategory = (id) => {
             <div class="form-row">
                 <div class="form-group">
                     <label for="ecat-icon">Ikona (emoji)</label>
-                    <input type="text" id="ecat-icon" value="${cat.icon || '📋'}" maxlength="2" style="text-align:center;font-size:1.3rem;">
+                    ${renderIconSelect('ecat-icon', cat.icon || '📋')}
                 </div>
                 <div class="form-group">
                     <label for="ecat-color">Kolor</label>
@@ -194,9 +217,9 @@ window.handleEditCategory = (id) => {
                 </div>
             </div>
             <div class="form-group">
-                <label>Podtypy</label>
+                <label>Tagi</label>
                 <div id="ecat-subtypes">${subtypesHtml}</div>
-                <button class="btn btn-sm btn-ghost" type="button" onclick="addEditSubtypeRow()" style="margin-top:4px;">+ Dodaj podtyp</button>
+                <button class="btn btn-sm btn-ghost" type="button" onclick="addEditSubtypeRow()" style="margin-top:4px;">+ Dodaj tag</button>
             </div>`,
         footer: `
             <button class="btn btn-secondary" onclick="window.TaskAlert.closeModal()">Anuluj</button>
@@ -207,7 +230,7 @@ window.handleEditCategory = (id) => {
                 const row = document.createElement('div');
                 row.className = 'flex items-center gap-2 mb-4';
                 row.innerHTML = `
-                    <input type="text" class="subtype-input" placeholder="Nazwa podtypu" style="flex:1;">
+                    <input type="text" class="subtype-input" placeholder="Nazwa tagu" style="flex:1;">
                     <button class="btn btn-sm btn-ghost text-danger" type="button" onclick="this.parentElement.remove()">×</button>`;
                 container.appendChild(row);
             };
@@ -216,7 +239,7 @@ window.handleEditCategory = (id) => {
                 const name = body.querySelector('#ecat-name').value.trim();
                 if (!name) { window.TaskAlert.showToast('Podaj nazwę kategorii.', 'warning'); return; }
 
-                const icon = body.querySelector('#ecat-icon').value.trim() || '📋';
+                const icon = body.querySelector('#ecat-icon').value || '📋';
                 const color = body.querySelector('#ecat-color').value;
                 const subtypeInputs = body.querySelectorAll('.subtype-input');
                 const subTypes = Array.from(subtypeInputs)
@@ -232,6 +255,7 @@ window.handleEditCategory = (id) => {
                     await updateCategory(id, { name, icon, color, subTypes });
                     window.TaskAlert.showToast('Kategoria zaktualizowana.', 'success');
                     window.TaskAlert.closeModal();
+                    window.dispatchEvent(new Event('taskalert-categories-changed'));
                 } catch (err) {
                     window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
                 }
@@ -250,6 +274,7 @@ window.handleDeleteCategory = async (id, name) => {
         try {
             await deleteCategory(id);
             window.TaskAlert.showToast(`Kategoria "${name}" usunięta.`, 'success');
+            window.dispatchEvent(new Event('taskalert-categories-changed'));
         } catch (err) {
             window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
         }
@@ -260,6 +285,7 @@ window.handleVisibilityToggle = async (catId, visible) => {
     try {
         await setCategoryVisibility(catId, visible);
         visibility[catId] = visible;
+        window.dispatchEvent(new Event('taskalert-categories-changed'));
     } catch (err) {
         window.TaskAlert.showToast('Błąd zapisu widoczności.', 'error');
     }

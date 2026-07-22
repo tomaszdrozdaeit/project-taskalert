@@ -3,18 +3,18 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onRemindersChange } from '../db.js';
+import { onRemindersChange, getCategories } from '../db.js';
 
 const EXCLUDED_CATEGORIES = ['Samochody', 'Kadry'];
-const ICON = '📋';
 let unsubscribe = null;
 let allReminders = [];
+let currentCategory = null;
 
 export function render() {
     return `
         <div class="page-header animate-in">
-            <h1 class="page-title">${ICON} Inne i pozostałe</h1>
-            <p class="page-subtitle">Wszystkie pozostałe przypomnienia spoza kategorii Samochody i Kadry</p>
+            <h1 class="page-title" id="inne-title">📋 Inne i pozostałe</h1>
+            <p class="page-subtitle" id="inne-subtitle">Wszystkie pozostałe przypomnienia spoza kategorii Samochody i Kadry</p>
         </div>
 
         <div class="filter-bar animate-in">
@@ -29,7 +29,7 @@ export function render() {
                 <option value="warning">🟡 Do 30 dni</option>
                 <option value="ok">🟢 Powyżej 30 dni</option>
             </select>
-            <button class="btn btn-primary" onclick="window.TaskAlert.showAddReminderModal()">
+            <button class="btn btn-primary" onclick="window.TaskAlert.showAddReminderModal(${currentCategory ? `'${currentCategory.id}'` : ''})">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                 <span>Dodaj</span>
             </button>
@@ -40,9 +40,26 @@ export function render() {
         </div>`;
 }
 
-export function init() {
+export async function init(customCatId = null) {
+    currentCategory = null;
+    if (customCatId) {
+        const categories = await getCategories();
+        currentCategory = categories.find(c => c.id === customCatId || c.name.toLowerCase() === customCatId.toLowerCase());
+        
+        const titleEl = document.getElementById('inne-title');
+        const subtitleEl = document.getElementById('inne-subtitle');
+        if (currentCategory && titleEl) {
+            titleEl.textContent = `${currentCategory.icon || '📋'} ${currentCategory.name}`;
+            if (subtitleEl) subtitleEl.textContent = `Przypomnienia z kategorii ${currentCategory.name}`;
+        }
+    }
+
     unsubscribe = onRemindersChange((reminders) => {
-        allReminders = reminders.filter(r => !EXCLUDED_CATEGORIES.includes(r.categoryName));
+        if (currentCategory) {
+            allReminders = reminders.filter(r => r.categoryId === currentCategory.id || r.categoryName === currentCategory.name);
+        } else {
+            allReminders = reminders.filter(r => !EXCLUDED_CATEGORIES.includes(r.categoryName));
+        }
         renderList();
     }, 'active');
 
@@ -51,6 +68,16 @@ export function init() {
 
     if (searchInput) searchInput.addEventListener('input', renderList);
     if (filterStatus) filterStatus.addEventListener('change', renderList);
+
+    const listEl = document.getElementById('reminders-list-inne');
+    if (listEl) {
+        listEl.addEventListener('click', (e) => {
+            const card = e.target.closest('.reminder-card');
+            if (card && card.dataset.id) {
+                window.TaskAlert.showReminderDetailsModal(card.dataset.id);
+            }
+        });
+    }
 
     return () => { if (unsubscribe) unsubscribe(); };
 }
