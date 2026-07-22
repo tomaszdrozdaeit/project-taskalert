@@ -166,14 +166,17 @@ function renderList() {
     filtered.sort((a, b) => a.daysLeft - b.daysLeft);
 
     if (filtered.length === 0) {
+        const catIcon = currentCategory?.icon || '📋';
+        const catName = currentCategory ? `w kategorii ${currentCategory.name}` : 'ogólne';
+        const catIdParam = currentCategory ? `'${currentCategory.id}'` : '';
         listEl.innerHTML = `
             <div class="empty-state">
-                <div class="empty-state-icon">${ICON}</div>
+                <div class="empty-state-icon">${catIcon}</div>
                 <div class="empty-state-title">${searchVal || statusFilter !== 'all' ? 'Brak wyników' : 'Brak przypomnień'}</div>
                 <p class="empty-state-text">${searchVal || statusFilter !== 'all'
-                    ? 'Zmień kryteria wyszukiwania.' : 'Dodaj swoje pierwsze przypomnienie ogólne.'}</p>
+                    ? 'Zmień kryteria wyszukiwania.' : `Dodaj swoje pierwsze przypomnienie ${escHtml(catName)}.`}</p>
                 ${!searchVal && statusFilter === 'all'
-                    ? '<button class="btn btn-primary" onclick="window.TaskAlert.showAddReminderModal()">Dodaj przypomnienie</button>' : ''}
+                    ? `<button class="btn btn-primary" onclick="window.TaskAlert.showAddReminderModal(${catIdParam})">Dodaj przypomnienie</button>` : ''}
             </div>`;
         return;
     }
