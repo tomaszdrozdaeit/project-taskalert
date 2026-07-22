@@ -582,13 +582,7 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
     const statusCls = getAlertStatus(days);
     const countdownText = getCountdownText(days);
 
-    const historyHtml = (reminder.history || []).slice(-5).reverse().map(h => `
-        <div style="font-size:0.8rem;color:var(--text-secondary);padding:6px 0;border-top:1px solid var(--border-light);">
-            ✅ Wykonano: <strong>${formatDate(h.executedAt)}</strong>
-            ${h.newExpiry ? ` → Następny termin: <strong>${formatDate(h.newExpiry)}</strong>` : ' (zamknięte)'}
-            ${h.note ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">📝 ${escHtml(h.note)}</div>` : ''}
-        </div>
-    `).join('') || '<div style="font-size:0.8rem;color:var(--text-muted);padding:8px 0;">Brak historii wykonania</div>';
+    const historyHtml = renderEventHistory(reminder.history || []);
 
     const defaultAlertDays = reminder.alertDays || [30, 14];
     const alertChipsHtml = defaultAlertDays.map(d =>
@@ -665,8 +659,8 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             </div>
 
             <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-color);">
-                <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:8px;">📜 Historia wykonania</h4>
-                <div>${historyHtml}</div>
+                <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:8px;">📜 Historia zdarzeń alertu</h4>
+                <div style="max-height:220px;overflow-y:auto;padding-right:4px;">${historyHtml}</div>
             </div>`,
         footer: `
             <div style="display:flex;align-items:center;gap:8px;width:100%;flex-wrap:wrap;justify-content:space-between;">
@@ -1109,9 +1103,98 @@ export function escHtml(str) {
 
 export function formatDate(date) {
     if (!date) return '—';
-    if (date.toDate) date = date.toDate(); // Firestore Timestamp
-    if (typeof date === 'string') date = new Date(date);
+    if (date.toDate && typeof date.toDate === 'function') date = date.toDate(); // Firestore Timestamp
+    if (typeof date === 'string' || typeof date === 'number') date = new Date(date);
+    if (isNaN(date.getTime())) return '—';
     return date.toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+export function formatDateTime(date) {
+    if (!date) return '—';
+    if (date.toDate && typeof date.toDate === 'function') date = date.toDate();
+    if (typeof date === 'string' || typeof date === 'number') date = new Date(date);
+    if (isNaN(date.getTime())) return '—';
+
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+
+    return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
+function renderEventHistory(historyList) {
+    if (!historyList || historyList.length === 0) {
+        return '<div style="font-size:0.82rem;color:var(--text-muted);padding:10px 0;text-align:center;">Brak zarejestrowanych zdarzeń w historii.</div>';
+    }
+
+    const sorted = [...historyList].reverse();
+
+    return sorted.map(item => {
+        const timeStr = formatDateTime(item.timestamp || item.executedAt);
+        let icon = '📌';
+        let titleStr = '';
+        let badgeColor = 'var(--accent-color)';
+        let badgeBg = 'rgba(79, 140, 255, 0.12)';
+        let detailsHtml = '';
+
+        if (item.type === 'created') {
+            icon = '🆕';
+            titleStr = 'Utworzenie alertu';
+            badgeColor = '#10b981';
+            badgeBg = 'rgba(16, 185, 129, 0.15)';
+            if (item.expiryDate) {
+                detailsHtml = `Pierwotny termin wygaśnięcia: <strong style="color:#10b981;">${formatDate(item.expiryDate)}</strong>`;
+            } else {
+                detailsHtml = escHtml(item.note || 'Utworzono przypomnienie');
+            }
+        } else if (item.type === 'edited') {
+            icon = '✏️';
+            titleStr = 'Edycja szczegółów';
+            badgeColor = '#f59e0b';
+            badgeBg = 'rgba(245, 158, 11, 0.15)';
+            detailsHtml = item.note ? escHtml(item.note) : 'Zaktualizowano dane przypomnienia';
+        } else if (item.type === 'email_sent') {
+            icon = '✉️';
+            titleStr = 'Wysłano e-mail';
+            badgeColor = '#7c3aed';
+            badgeBg = 'rgba(124, 58, 237, 0.15)';
+            const recs = (item.recipients || []).map(r => `<span style="color:#7c3aed;font-weight:600;">${escHtml(r)}</span>`).join(', ');
+            detailsHtml = recs ? `Odbiorcy: ${recs}` : (item.note ? escHtml(item.note) : '');
+        } else if (item.type === 'executed' || item.executedAt) {
+            icon = '✅';
+            titleStr = 'Oznaczono jako wykonane';
+            badgeColor = '#10b981';
+            badgeBg = 'rgba(16, 185, 129, 0.15)';
+            const execTime = item.executedAt ? formatDate(item.executedAt) : '—';
+            const nextTime = item.newExpiry ? formatDate(item.newExpiry) : null;
+            detailsHtml = `Data wykonania: <strong style="color:#10b981;">${execTime}</strong>`;
+            if (nextTime) {
+                detailsHtml += ` → Następny termin: <strong style="color:#4f8cff;">${nextTime}</strong>`;
+            } else {
+                detailsHtml += ` <span style="color:#ef4444;font-weight:600;">(Zamknięte)</span>`;
+            }
+            if (item.note) {
+                detailsHtml += `<div style="margin-top:3px;color:var(--text-secondary);">📝 <em>${escHtml(item.note)}</em></div>`;
+            }
+        } else {
+            titleStr = 'Zdarzenie';
+            detailsHtml = item.note ? escHtml(item.note) : '';
+        }
+
+        return `
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-light);">
+                <div style="font-size:1.2rem;line-height:1;padding-top:2px;">${icon}</div>
+                <div style="flex:1;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;">
+                        <span style="font-weight:700;font-size:0.8rem;color:${badgeColor};background:${badgeBg};padding:2px 8px;border-radius:6px;">${titleStr}</span>
+                        <span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">🕒 ${timeStr}</span>
+                    </div>
+                    <div style="font-size:0.8rem;color:var(--text-primary);margin-top:3px;">${detailsHtml}</div>
+                </div>
+            </div>`;
+    }).join('');
 }
 
 export function daysUntil(date) {

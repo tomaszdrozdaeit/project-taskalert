@@ -40,6 +40,16 @@ function parseDate(d) {
     return new Date(d);
 }
 
+// Helper do bezpiecznej konwersji dowolnej daty na Firestore Timestamp
+function toFirestoreTimestamp(d) {
+    if (!d) return Timestamp.now();
+    if (d instanceof Timestamp) return d;
+    if (d.toDate && typeof d.toDate === 'function') return Timestamp.fromDate(d.toDate());
+    const dateObj = parseDate(d);
+    if (isNaN(dateObj.getTime())) return Timestamp.now();
+    return Timestamp.fromDate(dateObj);
+}
+
 // ============================================================
 // CATEGORIES — Globalne + per-user visibility
 // ============================================================
@@ -195,6 +205,14 @@ export async function addReminder(data) {
     if (!remindersRef) throw new Error('Użytkownik nie jest zalogowany.');
 
     const alertDays = data.alertDays || [30, 14];
+    const expiryTimestamp = toFirestoreTimestamp(data.expiryDate);
+
+    const initialHistory = [{
+        type: 'created',
+        timestamp: Timestamp.now(),
+        note: 'Utworzenie alertu w systemie',
+        expiryDate: expiryTimestamp
+    }];
 
     const reminderData = {
         title: data.title || '',
@@ -205,7 +223,7 @@ export async function addReminder(data) {
         subTypeLabel: data.subTypeLabel || 'Niestandardowy',
         primaryEmail: data.primaryEmail || '',
         secondaryEmail: data.secondaryEmail || '',
-        expiryDate: toFirestoreTimestamp(data.expiryDate),
+        expiryDate: expiryTimestamp,
         status: 'active',
         alertDays: alertDays,
         alertFlags: buildAlertFlags(alertDays),
@@ -213,7 +231,7 @@ export async function addReminder(data) {
         nextExpiryDate: null,
         recurrenceMonths: data.recurrenceMonths || 0,
         notes: data.notes || '',
-        history: [],
+        history: initialHistory,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
     };
@@ -233,6 +251,22 @@ export async function updateReminder(id, data) {
 
     if (data.expiryDate !== undefined) {
         data.expiryDate = toFirestoreTimestamp(data.expiryDate);
+    }
+
+    try {
+        const snap = await getDoc(reminderRef);
+        if (snap.exists()) {
+            const currentData = snap.data();
+            const history = [...(currentData.history || [])];
+            history.push({
+                type: 'edited',
+                timestamp: Timestamp.now(),
+                note: 'Zaktualizowano dane przypomnienia'
+            });
+            data.history = history;
+        }
+    } catch (err) {
+        console.warn('[DB] Błąd odczytu historii przed edycją:', err);
     }
 
     await updateDoc(reminderRef, {
@@ -256,10 +290,11 @@ export async function markAsExecuted(id, executedDate = new Date(), nextExpiryDa
     const alertDays = reminder.alertDays || [30, 14];
 
     const historyEntry = {
+        type: 'executed',
+        timestamp: Timestamp.now(),
         executedAt: toFirestoreTimestamp(executedDate),
         newExpiry: nextExpiryDate ? toFirestoreTimestamp(nextExpiryDate) : null,
-        note: note || '',
-        timestamp: Timestamp.now()
+        note: note || 'Oznaczono przypomnienie jako wykonane'
     };
 
     const updatedHistory = [...(reminder.history || []), historyEntry];
@@ -431,6 +466,26 @@ export async function sendManualNotification(reminder) {
                 </div>`
         }
     });
+
+    if (reminder.id) {
+        try {
+            const reminderRef = userDoc('reminders', reminder.id);
+            const snap = await getDoc(reminderRef);
+            if (snap.exists()) {
+                const currentData = snap.data();
+                const history = [...(currentData.history || [])];
+                history.push({
+                    type: 'email_sent',
+                    timestamp: Timestamp.now(),
+                    recipients: recipients,
+                    note: `Wysłano powiadomienie e-mail (${recipients.join(', ')})`
+                });
+                await updateDoc(reminderRef, { history, updatedAt: serverTimestamp() });
+            }
+        } catch (err) {
+            console.warn('[DB] Błąd dodawania historii e-mail:', err);
+        }
+    }
 
     return { id: docRef.id, recipients };
 }

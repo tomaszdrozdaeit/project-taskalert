@@ -10,7 +10,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In).
-- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v7`.
+- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v8`.
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions (cron co 24h).
 - **Brak procesu budowania**: Projekt uruchamia się bezpośrednio z plików źródłowych (Firebase z CDN).
 
@@ -22,7 +22,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji
 ├── manifest.json              # Manifest PWA (instalacja na telefonie/pulpicie)
-├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v7)
+├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v8)
 ├── firestore.rules            # Reguły zabezpieczeń Firestore
 ├── plan_wdrozenia_taskalert_v3.pdf  # Oryginalny plan wdrożenia
 ├── icons/
@@ -165,12 +165,10 @@ graph LR
   "recurrenceMonths": 12,
   "notes": "Agent: Anna Nowak, tel. 600 700 800",
   "history": [
-    {
-      "executedAt": "Timestamp",
-      "previousExpiry": "Timestamp",
-      "newExpiry": "Timestamp",
-      "note": "Odnowiono w PZU"
-    }
+    { "type": "created",    "timestamp": "Timestamp", "note": "Utworzenie alertu w systemie", "expiryDate": "Timestamp" },
+    { "type": "edited",     "timestamp": "Timestamp", "note": "Zaktualizowano dane przypomnienia" },
+    { "type": "email_sent", "timestamp": "Timestamp", "recipients": ["jan@example.com"], "note": "Wysłano powiadomienie e-mail (jan@example.com)" },
+    { "type": "executed",   "timestamp": "Timestamp", "executedAt": "Timestamp", "newExpiry": "Timestamp|null", "note": "Oznaczono przypomnienie jako wykonane" }
   ],
   "createdAt": "Timestamp",
   "updatedAt": "Timestamp"
