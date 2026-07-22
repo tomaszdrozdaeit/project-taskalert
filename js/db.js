@@ -205,7 +205,7 @@ export async function addReminder(data) {
         subTypeLabel: data.subTypeLabel || 'Niestandardowy',
         primaryEmail: data.primaryEmail || '',
         secondaryEmail: data.secondaryEmail || '',
-        expiryDate: Timestamp.fromDate(data.expiryDate),
+        expiryDate: toFirestoreTimestamp(data.expiryDate),
         status: 'active',
         alertDays: alertDays,
         alertFlags: buildAlertFlags(alertDays),
@@ -231,8 +231,8 @@ export async function updateReminder(id, data) {
         data.alertFlags = buildAlertFlags(data.alertDays);
     }
 
-    if (data.expiryDate instanceof Date) {
-        data.expiryDate = Timestamp.fromDate(data.expiryDate);
+    if (data.expiryDate !== undefined) {
+        data.expiryDate = toFirestoreTimestamp(data.expiryDate);
     }
 
     await updateDoc(reminderRef, {
@@ -248,40 +248,35 @@ export async function deleteReminder(id) {
 }
 
 // Oznacz jako wykonane — reset flag + historia + nowy cykl
-export async function markAsExecuted(id, executedDate, nextExpiryDate, note = '') {
+export async function markAsExecuted(id, executedDate = new Date(), nextExpiryDate = null, note = '') {
+    const reminder = await getReminder(id);
+    if (!reminder) throw new Error('Nie znaleziono przypomnienia.');
+
     const reminderRef = userDoc('reminders', id);
-    const snap = await getDoc(reminderRef);
+    const alertDays = reminder.alertDays || [30, 14];
 
-    if (!snap.exists()) throw new Error('Nie znaleziono przypomnienia.');
-
-    const data = snap.data();
     const historyEntry = {
-        executedAt: Timestamp.fromDate(executedDate),
-        previousExpiry: data.expiryDate,
-        newExpiry: nextExpiryDate ? Timestamp.fromDate(nextExpiryDate) : null,
-        note: note,
+        executedAt: toFirestoreTimestamp(executedDate),
+        newExpiry: nextExpiryDate ? toFirestoreTimestamp(nextExpiryDate) : null,
+        note: note || '',
         timestamp: Timestamp.now()
     };
 
-    const history = data.history || [];
-    history.push(historyEntry);
+    const updatedHistory = [...(reminder.history || []), historyEntry];
 
     if (nextExpiryDate) {
-        // Nowy cykl — reset flag i aktualizacja daty
         await updateDoc(reminderRef, {
-            expiryDate: Timestamp.fromDate(nextExpiryDate),
-            lastExecutedAt: Timestamp.fromDate(executedDate),
-            alertFlags: buildAlertFlags(data.alertDays || [30, 14]),
-            history,
-            status: 'active',
+            expiryDate: toFirestoreTimestamp(nextExpiryDate),
+            lastExecutedAt: toFirestoreTimestamp(executedDate),
+            alertFlags: buildAlertFlags(alertDays),
+            history: updatedHistory,
             updatedAt: serverTimestamp()
         });
     } else {
-        // Jednorazowe — zamknij
         await updateDoc(reminderRef, {
-            lastExecutedAt: Timestamp.fromDate(executedDate),
             status: 'completed',
-            history,
+            lastExecutedAt: toFirestoreTimestamp(executedDate),
+            history: updatedHistory,
             updatedAt: serverTimestamp()
         });
     }

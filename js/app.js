@@ -232,8 +232,14 @@ onAuthChange(async (user) => {
         // Inicjalizuj domyślne kategorie (jeśli brak)
         await initDefaultCategories();
 
+        // Subskrybuj kategorie w czasie rzeczywistym
+        const { onCategoriesChange } = await import('./db.js');
+        onCategoriesChange(() => {
+            renderSidebarCategories();
+        });
+
         // Renderuj dynamiczne menu kategorii
-        renderSidebarCategories();
+        await renderSidebarCategories();
 
         // Nawiguj do strony z hash lub dashboard
         navigateFromHash();
