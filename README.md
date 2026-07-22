@@ -10,7 +10,7 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In).
-- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v4`.
+- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v5`.
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions (cron co 24h).
 - **Brak procesu budowania**: Projekt uruchamia się bezpośrednio z plików źródłowych (Firebase z CDN).
 
@@ -22,12 +22,16 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji
 ├── manifest.json              # Manifest PWA (instalacja na telefonie/pulpicie)
-├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v4)
+├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v5)
 ├── firestore.rules            # Reguły zabezpieczeń Firestore
 ├── plan_wdrozenia_taskalert_v3.pdf  # Oryginalny plan wdrożenia
 ├── icons/
 │   ├── icon-192.png           # Ikona PWA 192x192
 │   └── icon-512.png           # Ikona PWA 512x512
+├── scripts/
+│   ├── daily_check.js         # Dobowy skrypt sprawdzania alertów (GitHub Actions)
+│   ├── konfiguracja_email.md  # Przewodnik krok-po-kroku konfiguracji serwera home.pl i wysyłki e-mail
+│   └── uwagi.md               # Rejestr zgłoszeń i uwag użytkownika
 ├── css/
 │   └── style.css              # Kompletny Design System (Light + Dark Mode)
 └── js/

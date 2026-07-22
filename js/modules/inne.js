@@ -40,27 +40,74 @@ export function render() {
         </div>`;
 }
 
-export async function init(customCatId = null) {
+export function init(customCatId = null) {
     currentCategory = null;
-    if (customCatId) {
-        const categories = await getCategories();
-        currentCategory = categories.find(c => c.id === customCatId || c.name.toLowerCase() === customCatId.toLowerCase());
-        
-        const titleEl = document.getElementById('inne-title');
-        const subtitleEl = document.getElementById('inne-subtitle');
-        if (currentCategory && titleEl) {
-            titleEl.textContent = `${currentCategory.icon || '📋'} ${currentCategory.name}`;
-            if (subtitleEl) subtitleEl.textContent = `Przypomnienia z kategorii ${currentCategory.name}`;
-        }
-    }
+    let rawReminders = [];
 
-    unsubscribe = onRemindersChange((reminders) => {
-        if (currentCategory) {
-            allReminders = reminders.filter(r => r.categoryId === currentCategory.id || r.categoryName === currentCategory.name);
+    // Funkcja filtrująca i renderująca listę
+    const applyFilterAndRender = (categoriesList = []) => {
+        if (customCatId) {
+            if (!currentCategory && categoriesList.length > 0) {
+                currentCategory = categoriesList.find(c =>
+                    c.id === customCatId ||
+                    c.id.toString() === customCatId.toString() ||
+                    c.name.toLowerCase() === customCatId.toLowerCase()
+                );
+            }
+
+            const titleEl = document.getElementById('inne-title');
+            const subtitleEl = document.getElementById('inne-subtitle');
+            if (currentCategory && titleEl) {
+                titleEl.textContent = `${currentCategory.icon || '📋'} ${currentCategory.name}`;
+                if (subtitleEl) subtitleEl.textContent = `Przypomnienia z kategorii ${currentCategory.name}`;
+            }
+
+            if (currentCategory) {
+                allReminders = rawReminders.filter(r =>
+                    r.categoryId === currentCategory.id ||
+                    (r.categoryName && r.categoryName.toLowerCase() === currentCategory.name.toLowerCase())
+                );
+            } else {
+                allReminders = rawReminders.filter(r =>
+                    r.categoryId === customCatId ||
+                    (r.categoryName && r.categoryName.toLowerCase() === customCatId.toLowerCase())
+                );
+            }
         } else {
-            allReminders = reminders.filter(r => !EXCLUDED_CATEGORIES.includes(r.categoryName));
+            // Widok "Inne" — wyklucz przypomnienia przypisane do pozostałych zarejestrowanych kategorii (np. Samochody, Kadry, Nieruchomości itp.)
+            const otherCatNames = categoriesList
+                .map(c => c.name)
+                .filter(name => name && name.toLowerCase() !== 'inne');
+
+            if (otherCatNames.length > 0) {
+                allReminders = rawReminders.filter(r =>
+                    !r.categoryName ||
+                    r.categoryName.toLowerCase() === 'inne' ||
+                    !otherCatNames.some(name => name.toLowerCase() === (r.categoryName || '').toLowerCase())
+                );
+            } else {
+                allReminders = rawReminders.filter(r => !EXCLUDED_CATEGORIES.includes(r.categoryName));
+            }
         }
+
         renderList();
+    };
+
+    let categoriesCache = [];
+
+    // Pobierz kategorie w tle i po uzyskaniu zaktualizuj nagłówek oraz filtry
+    getCategories().then(cats => {
+        categoriesCache = cats || [];
+        applyFilterAndRender(categoriesCache);
+    }).catch(err => {
+        console.warn('[Inne] Błąd pobierania kategorii:', err);
+        applyFilterAndRender([]);
+    });
+
+    // Subskrypcja przypomnień
+    unsubscribe = onRemindersChange((reminders) => {
+        rawReminders = reminders || [];
+        applyFilterAndRender(categoriesCache);
     }, 'active');
 
     const searchInput = document.getElementById('search-inne');

@@ -40,16 +40,26 @@ async function runDailyCheck() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // Pobierz wszystkie aktywne przypomnienia ze wszystkich użytkowników (collectionGroup)
-    const snapshot = await db.collectionGroup('reminders')
-        .where('status', '==', 'active')
-        .get();
-
-    console.log(`[DailyCheck] Znaleziono ${snapshot.docs.length} aktywnych przypomnień.`);
+    // Pobierz aktywne przypomnienia bez konieczności tworzenia indeksu zbiorczego w Firestore
+    let reminderDocs = [];
+    try {
+        const snapshot = await db.collectionGroup('reminders').get();
+        reminderDocs = snapshot.docs.filter(doc => doc.data().status === 'active');
+        console.log(`[DailyCheck] Znaleziono ${reminderDocs.length} aktywnych przypomnień (collectionGroup).`);
+    } catch (cgErr) {
+        console.warn('[DailyCheck] collectionGroup niedostępny, przełączanie na pobieranie per-użytkownik:', cgErr.message);
+        const usersSnap = await db.collection('users').get();
+        for (const userDoc of usersSnap.docs) {
+            const userRemindersSnap = await userDoc.ref.collection('reminders').get();
+            const activeDocs = userRemindersSnap.docs.filter(doc => doc.data().status === 'active');
+            reminderDocs.push(...activeDocs);
+        }
+        console.log(`[DailyCheck] Znaleziono ${reminderDocs.length} aktywnych przypomnień (fallback).`);
+    }
 
     let sentCount = 0;
 
-    for (const docSnap of snapshot.docs) {
+    for (const docSnap of reminderDocs) {
         const reminder = docSnap.data();
         const expiryDate = reminder.expiryDate ? reminder.expiryDate.toDate() : null;
         if (!expiryDate) continue;

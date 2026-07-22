@@ -1,21 +1,25 @@
-Ekran dodawania nowej Kategorii: pozycja Ikona (emoji) powinna być w formie listy rozwijanej z ikonami. Dodaj przykładowe 10 ikon
-Dodanie nowej Kategorii, lub włączenie/wyłączenie widoczności istniejącej nie zmienia widoku modułów w aplikacji - są nadal widzoczne tylko 3 podstawowe: Samochody, Kadry i Inne. Lista powinna dynamicznie się zmieniać po modyfikacji na karcie Kategorie.
-Zmieńsłowo: Podtypy na Tagi w ekranie Kategorii, we wszystkich miejscach wystęowania.
-Na kartach poszczególnych modułów alertów, gdy widzimy listę poszczególnych alertów nie ma możliwosći kliknięcia na nie - dodaj funkcje, która po kliknięciu na cały element karty alertu, otwiera okno dialogowe edycji tego alertu - ze szczegółami przypomnienia i możliwością ręcznego wysłania dodatkowego maila oraz ukończenia zadania z dodatkowym komentarzem
-Na karcie Kadry nie działa edycja isniejących alertów, oznaczenie jako ukończone oraz wysyłanie maila
-Daily Email Check failed with following error:4s
-Run node scripts/daily_check.js
-  node scripts/daily_check.js
-  shell: /usr/bin/bash -e {0}
-  env:
-    FIREBASE_SERVICE_ACCOUNT: 
+Moduł alertów: Inne - wyświetla także alerty z nowo utworzonych Kategorii. Popraw filtrowanie aby przypomnienia przypisane do poszczególnych kategorii były wyświetlane tylko na ich kartach. 
+Po dodaniu nowej Kategorii i przejściu na jej ekran, na środku ciągle kręci się kółko oczekiwania. Popraw to. 
+Daily Alert Check failed again:
+[DailyCheck] Połączono z Firebase używając podanego FIREBASE_SERVICE_ACCOUNT.
 [DailyCheck] Rozpoczynam dobową weryfikację terminów...
-[DailyCheck] Błąd wykonania: Error: Unable to detect a Project Id in the current environment. 
-To learn more about authentication and Google APIs, visit: 
-https://cloud.google.com/docs/authentication/getting-started
-    at GoogleAuth.findAndCacheProjectId (/home/runner/work/project-taskalert/project-taskalert/node_modules/google-gax/node_modules/google-auth-library/build/src/auth/googleauth.js:170:19)
-    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
-    at async Firestore.initializeIfNeeded (/home/runner/work/project-taskalert/project-taskalert/node_modules/@google-cloud/firestore/build/src/index.js:1201:35)
+[DailyCheck] Błąd wykonania: Error: 9 FAILED_PRECONDITION: The query requires a COLLECTION_GROUP_ASC index for collection reminders and field status. You can create it here: https://console.firebase.google.com/v1/r/project/taskalert-app-8d45d/firestore/indexes?create_exemption=Cllwcm9qZWN0cy90YXNrYWxlcnQtYXBwLThkNDVkL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9yZW1pbmRlcnMvZmllbGRzL3N0YXR1cxACGgoKBnN0YXR1cxAB
+    at callErrorFromStatus (/home/runner/work/project-taskalert/project-taskalert/node_modules/@grpc/grpc-js/build/src/call.js:32:19)
+    at Object.onReceiveStatus (/home/runner/work/project-taskalert/project-taskalert/node_modules/@grpc/grpc-js/build/src/client.js:359:73)
+    at Object.onReceiveStatus (/home/runner/work/project-taskalert/project-taskalert/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)
+    at /home/runner/work/project-taskalert/project-taskalert/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78
+    at process.processTicksAndRejections (node:internal/process/task_queues:77:11)
+for call at
+    at ServiceClientImpl.makeServerStreamRequest (/home/runner/work/project-taskalert/project-taskalert/node_modules/@grpc/grpc-js/build/src/client.js:342:32)
+    at ServiceClientImpl.<anonymous> (/home/runner/work/project-taskalert/project-taskalert/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)
+    at /home/runner/work/project-taskalert/project-taskalert/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33
+    at /home/runner/work/project-taskalert/project-taskalert/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28
+    at /home/runner/work/project-taskalert/project-taskalert/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16
+    at Object.request (/home/runner/work/project-taskalert/project-taskalert/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)
+    at makeRequest (/home/runner/work/project-taskalert/project-taskalert/node_modules/retry-request/index.js:159:28)
+    at retryRequest (/home/runner/work/project-taskalert/project-taskalert/node_modules/retry-request/index.js:119:5)
+    at StreamProxy.setStream (/home/runner/work/project-taskalert/project-taskalert/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)
+    at StreamingApiCaller.call (/home/runner/work/project-taskalert/project-taskalert/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16)
 Caused by: Error
     at QueryUtil._getResponse (/home/runner/work/project-taskalert/project-taskalert/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)
     at Query._getResponse (/home/runner/work/project-taskalert/project-taskalert/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)
@@ -26,9 +30,16 @@ Caused by: Error
     at ContextAPI.with (/home/runner/work/project-taskalert/project-taskalert/node_modules/@opentelemetry/api/build/src/api/context.js:51:46)
     at NoopTracer.startActiveSpan (/home/runner/work/project-taskalert/project-taskalert/node_modules/@opentelemetry/api/build/src/trace/NoopTracer.js:54:31)
     at ProxyTracer.startActiveSpan (/home/runner/work/project-taskalert/project-taskalert/node_modules/@opentelemetry/api/build/src/trace/ProxyTracer.js:27:24)
-    at EnabledTraceUtil.startActiveSpan (/home/runner/work/project-taskalert/project-taskalert/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28)
+    at EnabledTraceUtil.startActiveSpan (/home/runner/work/project-taskalert/project-taskalert/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:102:28) ***
+  code: 9,
+  details: 'The query requires a COLLECTION_GROUP_ASC index for collection reminders and field status. You can create it here: https://console.firebase.google.com/v1/r/project/taskalert-app-8d45d/firestore/indexes?create_exemption=Cllwcm9qZWN0cy90YXNrYWxlcnQtYXBwLThkNDVkL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy9yZW1pbmRlcnMvZmllbGRzL3N0YXR1cxACGgoKBnN0YXR1cxAB',
+  metadata: Metadata ***
+    internalRepr: Map(1) *** 'x-debug-tracking-id' => [Array] ***,
+    opaqueData: Map(0) ***,
+    options: ***
+  ***
+***
 Error: Process completed with exit code 1.
+Przedstaw krok po kroku co należy poprawić w konfiguracji bazy danych aby zapobiec temu błędowi w przyszłości. 
 
-Ręczne wysyłanie maili z powiadomieniami nie działa - nie przychodzą żadne maile. 
-
-
+Dodatkowo stwórz nowy dokument "konfiguracja_email.md" i umieść go w katalogu "scripts". W dokumencie umieść informacje o konfiguracji serwisu poczty e-mail. Szczegółowo i krok po kroku jak ustawić zarówno treść maila przypomnienia a także jak ustawić aby był wysyłany z mojego adresu biuro@consulting-ad.com. Server pocztowy na home.pl
