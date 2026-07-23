@@ -9,6 +9,7 @@ import {
     query, where, orderBy, onSnapshot, serverTimestamp, Timestamp,
     writeBatch
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { buildMailPayload } from './mail-utils.mjs';
 
 // ── Helpers ─────────────────────────────────────────────
 function uid() {
@@ -434,37 +435,14 @@ export async function getUserProfile() {
 // MAIL TRIGGER (for Firebase Extension "Trigger Email")
 // ============================================================
 export async function sendManualNotification(reminder) {
-    const rawRecipients = [reminder.primaryEmail, reminder.secondaryEmail];
-    const recipients = rawRecipients.filter(e => e && typeof e === 'string' && e.includes('@'));
-
-    if (recipients.length === 0) {
-        throw new Error('Brak prawidłowego adresu e-mail odbiorcy w tym przypomnieniu.');
-    }
+    const payload = buildMailPayload(reminder);
+    const recipients = payload.to;
 
     const mailRef = collection(db, 'mail');
-    const expiryDate = parseDate(reminder.expiryDate).toLocaleDateString('pl-PL');
-
     const docRef = await addDoc(mailRef, {
         to: recipients,
         createdAt: serverTimestamp(),
-        message: {
-            subject: `⏰ TaskAlert: ${reminder.title} — termin: ${expiryDate}`,
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background: linear-gradient(135deg, #4f8cff, #7c3aed); padding: 24px; border-radius: 12px 12px 0 0;">
-                        <h1 style="color: #fff; margin: 0; font-size: 22px;">🔔 TaskAlert — Przypomnienie</h1>
-                    </div>
-                    <div style="background: #f8f9fa; padding: 24px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;">
-                        <h2 style="margin: 0 0 8px; color: #1a1f2e;">${reminder.title}</h2>
-                        <p style="color: #64748b; margin: 0 0 16px;">Kategoria: ${reminder.categoryName || 'Brak'}</p>
-                        <div style="background: #fff; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                            <p style="margin: 0; color: #1a1f2e;"><strong>📅 Data wygaśnięcia:</strong> ${expiryDate}</p>
-                            ${reminder.notes ? `<p style="margin: 12px 0 0; color: #64748b;">📝 ${reminder.notes}</p>` : ''}
-                        </div>
-                        <p style="color: #94a3b8; font-size: 12px; margin: 16px 0 0;">Wysłano z systemu TaskAlert</p>
-                    </div>
-                </div>`
-        }
+        message: payload.message
     });
 
     if (reminder.id) {

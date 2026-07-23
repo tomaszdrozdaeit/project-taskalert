@@ -1,6 +1,6 @@
 # Przewodnik Konfiguracji Serwisu Poczty E-mail — TaskAlert
 
-Dokument opisuje krok po kroku konfigurację wysyłania powiadomień e-mail z adresu **biuro@consulting-ad.com** przy użyciu serwera pocztowego **home.pl** oraz rozszerzenia Firebase **Trigger Email from Firestore**.
+Dokument opisuje krok po kroku konfigurację wysyłania powiadomień e-mail z adresu **no-reply@consulting-ad.com** przy użyciu serwera pocztowego **home.pl** oraz rozszerzenia Firebase **Trigger Email from Firestore**.
 
 ---
 
@@ -16,15 +16,15 @@ Aplikacja **TaskAlert** wykorzystuje bezserwerowy mechanizm wysyłania e-maili o
 
 ## 📧 2. Parametry Poczty E-mail na home.pl
 
-Dla konta pocztowego **biuro@consulting-ad.com** na serwerze home.pl obowiązują następujące parametry dostępowe SMTP:
+Dla konta pocztowego **no-reply@consulting-ad.com** na serwerze home.pl obowiązują następujące parametry dostępowe SMTP:
 
 | Parametr | Wartość |
 | :--- | :--- |
-| **Adres e-mail nadawcy** | `biuro@consulting-ad.com` |
+| **Adres e-mail nadawcy** | `no-reply@consulting-ad.com` |
 | **Serwer wychodzący SMTP** | `smtp.home.pl` (lub `consulting-ad.com`) |
 | **Port SMTP (SSL/TLS)** | `465` (Zalecany) |
 | **Port SMTP (STARTTLS)** | `587` |
-| **Login SMTP** | `biuro@consulting-ad.com` (lub login konta w home.pl) |
+| **Login SMTP** | `no-reply@consulting-ad.com` (lub login konta w home.pl) |
 | **Hasło SMTP** | Hasło do Twojej skrzynki e-mail |
 | **Protokół szyfrowania** | SMTPS / SSL |
 
@@ -49,9 +49,9 @@ W formularzu konfiguracyjnym ustaw następujące wartości:
 1. **SMTP Connection URI**:
    Wpisz ciąg połączeniowy uwzględniający protokół SMTPS, port 465 oraz dane dostępowe home.pl:
    ```text
-   smtps://biuro%40consulting-ad.com:TWOJE_HASLO@smtp.home.pl:465
+   smtps://no-reply%40consulting-ad.com:TWOJE_HASLO@smtp.home.pl:465
    ```
-   > ⚠️ **Ważne**: Znak `@` w loginie e-mail zamień na kod URL `%40` (`biuro%40consulting-ad.com`). Jeśli w haśle występują znaki specjalne (np. `#`, `?`, `&`), one również muszą być zakodowane URL-em.
+   > ⚠️ **Ważne**: Znak `@` w loginie e-mail zamień na kod URL `%40` (`no-reply%40consulting-ad.com`). Jeśli w haśle występują znaki specjalne (np. `#`, `?`, `&`), one również muszą być zakodowane URL-em.
 
 2. **Email documents collection**:
    ```text
@@ -60,12 +60,12 @@ W formularzu konfiguracyjnym ustaw następujące wartości:
 
 3. **Default FROM address**:
    ```text
-   biuro@consulting-ad.com
+   no-reply@consulting-ad.com
    ```
 
 4. **Default REPLY-TO address** (opcjonalnie):
    ```text
-   biuro@consulting-ad.com
+   no-reply@consulting-ad.com
    ```
 
 5. Kliknij **Save** / **Install Extension**. Firebase utworzy niezbędne funkcje chmurowe i połączy się z serwerem home.pl.
@@ -116,7 +116,7 @@ export async function sendManualNotification(reminder) {
                         <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
                         <p style="color: #94a3b8; font-size: 12px; margin: 0; text-align: center;">
                             Wiadomość wygenerowana automatycznie przez system <strong>TaskAlert</strong>.<br/>
-                            Nadawca: <a href="mailto:biuro@consulting-ad.com" style="color: #4f8cff; text-decoration: none;">biuro@consulting-ad.com</a>
+                            Nadawca: <a href="mailto:no-reply@consulting-ad.com" style="color: #4f8cff; text-decoration: none;">no-reply@consulting-ad.com</a>
                         </p>
                     </div>
                 </div>`
@@ -149,7 +149,7 @@ await db.collection('mail').add({
                     <p style="color: #64748b;">Kategoria: ${reminder.categoryName || 'Brak'}</p>
                     ${reminder.notes ? `<div style="background:#f1f5f9;padding:12px;border-radius:6px;">📝 ${reminder.notes}</div>` : ''}
                     <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #94a3b8; text-align: center;">
-                        TaskAlert Notifications — biuro@consulting-ad.com
+                        TaskAlert Notifications — no-reply@consulting-ad.com
                     </div>
                 </div>
             </div>`
