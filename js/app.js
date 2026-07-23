@@ -707,8 +707,8 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
 
             footer.querySelector('#modal-mail-btn').addEventListener('click', async () => {
                 try {
-                    await sendManualNotification(reminder);
-                    showToast(`Powiadomienie e-mail zostało wysłane do: ${reminder.primaryEmail}${reminder.secondaryEmail ? ', ' + reminder.secondaryEmail : ''}`, 'success');
+                    const result = await sendManualNotification(reminder);
+                    showToast(`Wysłano żądanie e-mail do rozszerzenia Trigger Email. ID dokumentu: ${result.id}. Sprawdź kolejkę Firestore i logi rozszerzenia.`, 'success');
                 } catch (err) {
                     showToast('Błąd wysyłania e-maila: ' + err.message, 'error');
                 }
@@ -876,8 +876,8 @@ window.handleSendNotification = async (id) => {
     const { getReminder, sendManualNotification } = await import('./db.js');
     const r = await getReminder(id);
     if (r) {
-        await sendManualNotification(r);
-        showToast(`Powiadomienie e-mail zostało wysłane do: ${r.primaryEmail}${r.secondaryEmail ? ', ' + r.secondaryEmail : ''}`, 'success');
+        const result = await sendManualNotification(r);
+        showToast(`Wysłano żądanie e-mail do rozszerzenia Trigger Email. ID dokumentu: ${result.id}.`, 'success');
     }
 };
 
