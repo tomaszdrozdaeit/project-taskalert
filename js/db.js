@@ -36,7 +36,17 @@ function userDoc(path, id) {
 // Helper do bezpiecznej konwersji daty
 function parseDate(d) {
     if (!d) return new Date(0);
-    if (d.toDate && typeof d.toDate === 'function') return d.toDate();
+    if (d instanceof Timestamp) return d.toDate();
+    if (typeof d.toDate === 'function') return d.toDate();
+    if (typeof d === 'object' && typeof d.seconds === 'number') {
+        let sec = d.seconds;
+        if (sec > 253402300799) sec = Math.floor(sec / 1000);
+        return new Date(sec * 1000);
+    }
+    if (typeof d === 'number') {
+        if (d > 253402300799) return new Date(d);
+        return new Date(d * 1000);
+    }
     if (d instanceof Date) return d;
     return new Date(d);
 }
@@ -45,8 +55,20 @@ function parseDate(d) {
 function toFirestoreTimestamp(d) {
     if (!d) return Timestamp.now();
     if (d instanceof Timestamp) return d;
-    if (d.toDate && typeof d.toDate === 'function') return Timestamp.fromDate(d.toDate());
-    const dateObj = parseDate(d);
+    if (typeof d.toDate === 'function') return Timestamp.fromDate(d.toDate());
+    if (typeof d === 'object' && typeof d.seconds === 'number') {
+        let sec = d.seconds;
+        if (sec > 253402300799) sec = Math.floor(sec / 1000);
+        return new Timestamp(sec, d.nanoseconds || 0);
+    }
+    if (typeof d === 'number') {
+        if (d > 253402300799) return Timestamp.fromMillis(d);
+        return new Timestamp(d, 0);
+    }
+    if (d instanceof Date) {
+        return isNaN(d.getTime()) ? Timestamp.now() : Timestamp.fromDate(d);
+    }
+    const dateObj = new Date(d);
     if (isNaN(dateObj.getTime())) return Timestamp.now();
     return Timestamp.fromDate(dateObj);
 }
@@ -243,6 +265,36 @@ export async function addReminder(data) {
 
     const docRef = await addDoc(remindersRef, reminderData);
     return docRef.id;
+}
+
+// Pobierz jedno przypomnienie po ID (prywatne lub zespołowe)
+export async function getReminder(id) {
+    const currentUid = uid();
+    if (!currentUid) return null;
+
+    // Próba odczytu z przypomnień prywatnych
+    try {
+        const privateRef = userDoc('reminders', id);
+        const snap = await getDoc(privateRef);
+        if (snap.exists()) {
+            return { id: snap.id, isShared: false, ...snap.data() };
+        }
+    } catch (e) {
+        // Ignoruj błąd i spróbuj w sharedAlerts
+    }
+
+    // Próba odczytu ze sharedAlerts
+    try {
+        const sharedRef = doc(db, 'sharedAlerts', id);
+        const snap = await getDoc(sharedRef);
+        if (snap.exists()) {
+            return { id: snap.id, isShared: true, ...snap.data() };
+        }
+    } catch (e) {
+        console.warn('[DB] Błąd odczytu alertu zespołowego:', e);
+    }
+
+    return null;
 }
 
 // Aktualizuj przypomnienie (prywatne lub zespołowe)
