@@ -74,20 +74,14 @@ export function init(customCatId = null) {
                 );
             }
         } else {
-            // Widok "Inne" — wyklucz przypomnienia przypisane do pozostałych zarejestrowanych kategorii (np. Samochody, Kadry, Nieruchomości itp.)
-            const otherCatNames = categoriesList
-                .map(c => c.name)
-                .filter(name => name && name.toLowerCase() !== 'inne');
-
-            if (otherCatNames.length > 0) {
-                allReminders = rawReminders.filter(r =>
-                    !r.categoryName ||
-                    r.categoryName.toLowerCase() === 'inne' ||
-                    !otherCatNames.some(name => name.toLowerCase() === (r.categoryName || '').toLowerCase())
-                );
-            } else {
-                allReminders = rawReminders.filter(r => !EXCLUDED_CATEGORIES.includes(r.categoryName));
-            }
+            // Widok "Inne" — POKAZUJ TYLKO przypomnienia z kategorii "Inne" lub bez kategorii.
+            // Alerty z jakichkolwiek innych kategorii (Samochody, Kadry, Nieruchomości itp.) NIE MOGĄ pojawiać się na liście Inne.
+            allReminders = rawReminders.filter(r =>
+                !r.categoryId ||
+                r.categoryId === 'inne' ||
+                !r.categoryName ||
+                r.categoryName.toLowerCase() === 'inne'
+            );
         }
 
         renderList();

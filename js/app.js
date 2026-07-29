@@ -1495,6 +1495,24 @@ export function debounce(fn, ms = 300) {
 }
 
 // ============================================================
+// GLOBAL TASKALERT API EXPORT (for window.TaskAlert)
+// ============================================================
+window.TaskAlert = {
+    showToast,
+    showModal,
+    closeModal,
+    showConfirm,
+    showReminderDetailsModal,
+    showAddReminderModal
+};
+
+window.showReminderDetailsModal = showReminderDetailsModal;
+window.showAddReminderModal = showAddReminderModal;
+window.closeModal = closeModal;
+window.showConfirm = showConfirm;
+window.showToast = showToast;
+
+// ============================================================
 // SERVICE WORKER REGISTRATION
 // ============================================================
 if ('serviceWorker' in navigator) {
