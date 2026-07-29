@@ -637,6 +637,71 @@ function buildEmailOptions(allowedUsers = [], currentEmail = '', defaultEmail = 
     return options;
 }
 
+// Helpers for date countdowns & statuses
+function daysUntil(date) {
+    if (!date) return Infinity;
+    if (date.toDate && typeof date.toDate === 'function') date = date.toDate();
+    if (typeof date === 'string') date = new Date(date);
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const target = new Date(date); target.setHours(0, 0, 0, 0);
+    return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+}
+
+function getAlertStatus(days) {
+    if (days < 0) return 'danger';
+    if (days <= 14) return 'danger';
+    if (days <= 30) return 'warning';
+    return 'ok';
+}
+
+function getStatusClass(days) {
+    if (days < 0) return 'status-overdue';
+    if (days <= 14) return 'status-danger';
+    if (days <= 30) return 'status-warning';
+    return 'status-ok';
+}
+
+function getCountdownClass(days) {
+    if (days < 0) return 'countdown-danger';
+    if (days <= 14) return 'countdown-danger';
+    if (days <= 30) return 'countdown-warning';
+    return 'countdown-ok';
+}
+
+function getCountdownText(days) {
+    if (days < 0) return `${Math.abs(days)} dni temu!`;
+    if (days === 0) return 'Dziś!';
+    if (days === 1) return 'Jutro!';
+    return `za ${days} dni`;
+}
+
+function renderEventHistory(history = []) {
+    if (!history || history.length === 0) {
+        return '<p style="font-size:0.82rem;color:var(--text-muted);">Brak wpisów w historii.</p>';
+    }
+
+    return history.slice().reverse().map(h => {
+        const dateStr = h.timestamp?.toDate
+            ? h.timestamp.toDate().toLocaleString('pl-PL')
+            : (h.timestamp ? new Date(h.timestamp).toLocaleString('pl-PL') : '—');
+
+        let icon = '📝';
+        if (h.type === 'created') icon = '➕';
+        if (h.type === 'edited') icon = '✏️';
+        if (h.type === 'email_sent') icon = '✉️';
+        if (h.type === 'executed') icon = '✅';
+
+        return `
+            <div style="font-size:0.82rem;padding:6px 0;border-bottom:1px dashed var(--border-color);display:flex;align-items:flex-start;gap:8px;">
+                <span>${icon}</span>
+                <div style="flex:1;">
+                    <div><strong>${escHtml(h.note || h.type)}</strong></div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">${dateStr} ${h.recipients ? '→ ' + escHtml(h.recipients.join(', ')) : ''}</div>
+                </div>
+            </div>`;
+    }).join('');
+}
+
 // ============================================================
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================

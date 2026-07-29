@@ -197,7 +197,7 @@ async function updateDashboard(reminders) {
             const fillClass = r.daysLeft < 0 ? 'fill-danger' : r.daysLeft <= 14 ? 'fill-danger' : r.daysLeft <= 30 ? 'fill-warning' : 'fill-ok';
 
             return `
-                <div class="reminder-card" data-id="${r.id}" onclick="location.hash='#${getCategoryHash(r.categoryName)}'">
+                <div class="reminder-card" data-id="${r.id}">
                     <div class="reminder-status ${status}"></div>
                     <div class="reminder-info">
                         <div class="reminder-title">${escHtml(r.title)}</div>
