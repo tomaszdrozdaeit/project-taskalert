@@ -267,35 +267,7 @@ export async function addReminder(data) {
     return docRef.id;
 }
 
-// Pobierz jedno przypomnienie po ID (prywatne lub zespołowe)
-export async function getReminder(id) {
-    const currentUid = uid();
-    if (!currentUid) return null;
 
-    // Próba odczytu z przypomnień prywatnych
-    try {
-        const privateRef = userDoc('reminders', id);
-        const snap = await getDoc(privateRef);
-        if (snap.exists()) {
-            return { id: snap.id, isShared: false, ...snap.data() };
-        }
-    } catch (e) {
-        // Ignoruj błąd i spróbuj w sharedAlerts
-    }
-
-    // Próba odczytu ze sharedAlerts
-    try {
-        const sharedRef = doc(db, 'sharedAlerts', id);
-        const snap = await getDoc(sharedRef);
-        if (snap.exists()) {
-            return { id: snap.id, isShared: true, ...snap.data() };
-        }
-    } catch (e) {
-        console.warn('[DB] Błąd odczytu alertu zespołowego:', e);
-    }
-
-    return null;
-}
 
 // Aktualizuj przypomnienie (prywatne lub zespołowe)
 export async function updateReminder(id, data) {

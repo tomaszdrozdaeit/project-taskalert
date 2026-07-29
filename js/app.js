@@ -652,10 +652,6 @@ export function getCountdownClass(days) {
     return 'countdown-ok';
 }
 
-
-
-
-
 // ============================================================
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================
@@ -1295,7 +1291,9 @@ function updateSubtypeOptions(selectEl, category) {
     ).join('');
 }
 
-// Eksportuj do użycia z modułów
+// ============================================================
+// GLOBAL TASKALERT API EXPORT (for window.TaskAlert)
+// ============================================================
 window.TaskAlert = {
     showToast,
     showModal,
@@ -1305,8 +1303,22 @@ window.TaskAlert = {
     showReminderDetailsModal,
     showExecuteModal,
     escHtml,
-    navigateTo
+    navigateTo,
+    formatDate,
+    formatDateTime,
+    daysUntil,
+    getAlertStatus,
+    getCountdownText,
+    getStatusClass,
+    getCountdownClass,
+    debounce
 };
+
+window.showReminderDetailsModal = showReminderDetailsModal;
+window.showAddReminderModal = showAddReminderModal;
+window.closeModal = closeModal;
+window.showConfirm = showConfirm;
+window.showToast = showToast;
 
 // ============================================================
 // HELPERS
@@ -1448,23 +1460,7 @@ export function debounce(fn, ms = 300) {
     };
 }
 
-// ============================================================
-// GLOBAL TASKALERT API EXPORT (for window.TaskAlert)
-// ============================================================
-window.TaskAlert = {
-    showToast,
-    showModal,
-    closeModal,
-    showConfirm,
-    showReminderDetailsModal,
-    showAddReminderModal
-};
 
-window.showReminderDetailsModal = showReminderDetailsModal;
-window.showAddReminderModal = showAddReminderModal;
-window.closeModal = closeModal;
-window.showConfirm = showConfirm;
-window.showToast = showToast;
 
 // ============================================================
 // SERVICE WORKER REGISTRATION (Auto-unregister on localhost)

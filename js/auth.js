@@ -189,32 +189,61 @@ export async function loginUser(email, password) {
 // ── Logowanie z Google ──────────────────────────────────
 export async function loginWithGoogle() {
     const provider = new GoogleAuthProvider();
-    let cred = null;
+    provider.addScope('email');
+    provider.addScope('profile');
+
     try {
-        cred = await signInWithPopup(auth, provider);
-    } catch (err) {
-        console.warn('[Auth] signInWithPopup error, retrying with signInWithRedirect:', err);
-        if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
-            await signInWithRedirect(auth, provider);
-            return null;
+        // Preferuj popup (działa na localhost i GitHub Pages)
+        const cred = await signInWithPopup(auth, provider);
+        if (cred && cred.user) {
+            const allowed = await isUserAllowed(cred.user.email);
+            if (!allowed) {
+                await signOut(auth);
+                throw {
+                    code: 'auth/user-not-allowed',
+                    message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
+                };
+            }
+            await ensureUserProfile(cred.user);
+            return cred.user;
         }
+    } catch (err) {
+        // Tylko przy błędach popup przełącz na redirect
+        if (err.code === 'auth/popup-blocked' ||
+            err.code === 'auth/popup-closed-by-user' ||
+            err.code === 'auth/cancelled-popup-request') {
+            console.warn('[Auth] Popup zablokowany — używam signInWithRedirect:', err.code);
+            await signInWithRedirect(auth, provider);
+            return null; // onAuthStateChanged obsłuży wynik po powrocie
+        }
+        // Inne błędy propaguj
         throw err;
     }
 
-    if (cred && cred.user) {
-        const allowed = await isUserAllowed(cred.user.email);
-        if (!allowed) {
-            await signOut(auth);
-            throw {
-                code: 'auth/user-not-allowed',
-                message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
-            };
-        }
-        await ensureUserProfile(cred.user);
-        return cred.user;
-    }
     return null;
 }
+
+// ── Obsługa powrotu z Google Redirect ──────────────────
+// Wywoływane raz przy ładowaniu modułu — obsługuje wynik po signInWithRedirect
+(async () => {
+    try {
+        const result = await getRedirectResult(auth);
+        if (result && result.user) {
+            const allowed = await isUserAllowed(result.user.email);
+            if (!allowed) {
+                await signOut(auth);
+                console.warn('[Auth] Konto po redirect nie jest autoryzowane:', result.user.email);
+            } else {
+                await ensureUserProfile(result.user);
+                console.log('[Auth] Zalogowano przez Google (redirect):', result.user.email);
+            }
+        }
+    } catch (err) {
+        if (err.code !== 'auth/no-current-user') {
+            console.warn('[Auth] getRedirectResult error:', err.code, err.message);
+        }
+    }
+})();
 
 // ── Reset hasła ─────────────────────────────────────────
 export async function resetPassword(email) {
