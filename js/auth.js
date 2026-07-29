@@ -68,7 +68,7 @@ export async function getUserRole(email) {
 }
 
 // ── Inicjalizacja profilu w Firestore przy pierwszym logowaniu ──
-async function ensureUserProfile(user) {
+export async function ensureUserProfile(user) {
     if (!user || !user.email) return false;
     const currentEmail = user.email.trim().toLowerCase();
 
@@ -155,16 +155,16 @@ export async function initAllowedUsers() {
 
 // ── Rejestracja (Email + Hasło) ─────────────────────────
 export async function registerUser(email, password, displayName) {
-    // Sprawdź whitelist przed rejestracją
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
     const allowed = await isUserAllowed(email);
     if (!allowed) {
+        await signOut(auth);
         throw {
             code: 'auth/user-not-allowed',
             message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
         };
     }
 
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(cred.user, { displayName });
     await ensureUserProfile(cred.user);
     return cred.user;
@@ -172,16 +172,16 @@ export async function registerUser(email, password, displayName) {
 
 // ── Logowanie (Email + Hasło) ───────────────────────────
 export async function loginUser(email, password) {
-    // Sprawdź whitelist przed logowaniem
+    const cred = await signInWithEmailAndPassword(auth, email, password);
     const allowed = await isUserAllowed(email);
     if (!allowed) {
+        await signOut(auth);
         throw {
             code: 'auth/user-not-allowed',
             message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
         };
     }
 
-    const cred = await signInWithEmailAndPassword(auth, email, password);
     await ensureUserProfile(cred.user);
     return cred.user;
 }

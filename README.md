@@ -199,4 +199,4 @@ git add .
 git commit -m "Wdrożenie wersji v4 — PUSH, PWA banner, Whitelist, SharedAlerts"
 git push origin main
 ```
-Service worker korzysta z pamięci podręcznej **`taskalert-v9`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.
+Service worker korzysta z pamięci podręcznej **`taskalert-v14`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.
