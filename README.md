@@ -10,7 +10,7 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties i glassmorphism) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In z automatyczną weryfikacją whitelisty `allowedUsers`).
-- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v11`, wykrywaniem platformy (Android/iOS) oraz dedykowanym banerem instalacyjnym.
+- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v14`, wykrywaniem platformy (Android/iOS) oraz dedykowanym banerem instalacyjnym.
 - **Powiadomienia PUSH**: Firebase Cloud Messaging (FCM) + Cloud Functions (Node.js 18, Cron o 9:00 czasu polskiego `Europe/Warsaw` z obsługą czasu letniego/zimowego DST, akcje drzemki 5/10 min).
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions / Node.js dobowe weryfikacje.
 - **Testy**: Automatyczne testy reguł bezpieczeństwa Firestore (`tests/firestore-rules.test.js`) + audyt bezpieczeństwa.
@@ -186,6 +186,30 @@ cd functions
 firebase deploy --only functions
 ```
 Funkcja `scheduledAlertCheck` wykonuje się codziennie o **9:00 czasu polskiego** (`Europe/Warsaw`), automatycznie obsługując zmiany na czas letni/zimowy.
+
+---
+
+## 🧪 Lokalne Testowanie (Środowisko Deweloperskie)
+
+### Uruchomienie Serwera Lokalnego
+
+```powershell
+cd c:\03_Antigravity\06_TaskAlert
+git checkout v4-dev
+python server.py
+```
+
+Serwer nasłuchuje na **http://localhost:3001** (używaj `localhost`, nie `127.0.0.1`).
+
+> **Ważne:** Google Sign-In działa wyłącznie na domenie `localhost`. Adres `127.0.0.1` nie jest domyślnie autoryzowany w Firebase — jeśli chcesz go użyć, dodaj go ręcznie w Firebase Console → Authentication → Authorized domains.
+
+### Service Worker na Localhost
+
+Na `localhost` Service Worker jest **automatycznie wyrejestrowany** przy starcie aplikacji i cache jest czyszczony — co gwarantuje zawsze świeży kod podczas developmentu. Nie jest potrzebne ręczne czyszczenie.
+
+### Testowanie po zmianach
+
+Odśwież stronę w przeglądarce (`F5`). Jeśli zmiany nie są widoczne, użyj `Ctrl+Shift+R` (wymuszone odświeżenie bez cache).
 
 ---
 
