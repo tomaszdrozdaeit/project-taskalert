@@ -656,7 +656,7 @@ export function getCountdownClass(days) {
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================
 export async function showReminderDetailsModal(reminderId, reminderData) {
-    const { getReminder, getCategories, updateReminder, deleteReminder, sendManualNotification } = await import('./db.js');
+    const { getReminder, getCategories, getAllowedUsers, updateReminder, deleteReminder, sendManualNotification } = await import('./db.js');
 
     let reminder = reminderData || await getReminder(reminderId);
     if (!reminder) {
@@ -989,7 +989,7 @@ window.handleSendNotification = async (id) => {
 // ============================================================
 async function showAddReminderModal(prefillCategory) {
     // Dynamicznie importuj db do pobrania kategorii
-    const { getCategories, addReminder } = await import('./db.js');
+    const { getCategories, getAllowedUsers, addReminder } = await import('./db.js');
     const { getUserProfile } = await import('./auth.js');
 
     const categories = await getCategories();
