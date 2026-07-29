@@ -198,7 +198,9 @@ function getAuthErrorMessage(code) {
         'auth/weak-password':         'Hasło jest za słabe. Użyj minimum 6 znaków.',
         'auth/too-many-requests':     'Zbyt wiele prób logowania. Spróbuj za chwilę.',
         'auth/network-request-failed':'Błąd sieci. Sprawdź połączenie z internetem.',
-        'auth/user-not-allowed':      'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
+        'auth/user-not-allowed':      'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.',
+        'auth/unauthorized-domain':   'Adres/domena nie jest autoryzowana w Firebase Auth. Użyj adresu http://localhost:3001',
+        'auth/popup-blocked':         'Okno logowania Google zostało zablokowane przez przeglądarkę. Zezwól na wyskakujące okienka (popup).'
     };
     return messages[code] || `Wystąpił błąd autoryzacji: ${code}`;
 }

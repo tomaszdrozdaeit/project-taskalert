@@ -38,13 +38,14 @@ async function isUserAllowed(email) {
         const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
         const snap = await getDoc(allowedRef);
         if (snap.exists()) {
-            return snap.data().isActive !== false;
+            return snap.data().isActive !== false; // Zablokowany tylko jeśli isActive === false
         }
+        // Jeśli brak wpisu w allowedUsers (pierwsze logowanie konta) — zezwól i utwórz wpis w ensureUserProfile
+        return true;
     } catch (err) {
         console.warn('[Auth] Błąd odczytu allowedUsers:', err);
+        return true;
     }
-
-    return false;
 }
 
 // ── Pobierz rolę użytkownika z allowedUsers ─────────────
@@ -193,7 +194,6 @@ export async function loginWithGoogle() {
     provider.addScope('profile');
 
     try {
-        // Preferuj popup (działa na localhost i GitHub Pages)
         const cred = await signInWithPopup(auth, provider);
         if (cred && cred.user) {
             const allowed = await isUserAllowed(cred.user.email);
@@ -201,22 +201,22 @@ export async function loginWithGoogle() {
                 await signOut(auth);
                 throw {
                     code: 'auth/user-not-allowed',
-                    message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
+                    message: 'Twoje konto zostało zablokowane przez administratora.'
                 };
             }
             await ensureUserProfile(cred.user);
             return cred.user;
         }
     } catch (err) {
-        // Tylko przy błędach popup przełącz na redirect
-        if (err.code === 'auth/popup-blocked' ||
-            err.code === 'auth/popup-closed-by-user' ||
-            err.code === 'auth/cancelled-popup-request') {
-            console.warn('[Auth] Popup zablokowany — używam signInWithRedirect:', err.code);
+        if (err.code === 'auth/popup-blocked') {
+            console.warn('[Auth] Okno popup zablokowane w przeglądarce — przełączam na signInWithRedirect:', err.code);
             await signInWithRedirect(auth, provider);
-            return null; // onAuthStateChanged obsłuży wynik po powrocie
+            return null;
         }
-        // Inne błędy propaguj
+        if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+            console.log('[Auth] Logowanie Google anulowane przez użytkownika.');
+            return null;
+        }
         throw err;
     }
 
