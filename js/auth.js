@@ -12,7 +12,9 @@ import {
     updateProfile,
     sendPasswordResetEmail,
     GoogleAuthProvider,
-    signInWithPopup
+    signInWithPopup,
+    signInWithRedirect,
+    getRedirectResult
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
     doc, getDoc, setDoc, getDocs, collection, serverTimestamp
@@ -187,20 +189,31 @@ export async function loginUser(email, password) {
 // ── Logowanie z Google ──────────────────────────────────
 export async function loginWithGoogle() {
     const provider = new GoogleAuthProvider();
-    const cred = await signInWithPopup(auth, provider);
-
-    // Sprawdź whitelist po logowaniu Google (e-mail znany dopiero po)
-    const allowed = await isUserAllowed(cred.user.email);
-    if (!allowed) {
-        await signOut(auth);
-        throw {
-            code: 'auth/user-not-allowed',
-            message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
-        };
+    let cred = null;
+    try {
+        cred = await signInWithPopup(auth, provider);
+    } catch (err) {
+        console.warn('[Auth] signInWithPopup error, retrying with signInWithRedirect:', err);
+        if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+            await signInWithRedirect(auth, provider);
+            return null;
+        }
+        throw err;
     }
 
-    await ensureUserProfile(cred.user);
-    return cred.user;
+    if (cred && cred.user) {
+        const allowed = await isUserAllowed(cred.user.email);
+        if (!allowed) {
+            await signOut(auth);
+            throw {
+                code: 'auth/user-not-allowed',
+                message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
+            };
+        }
+        await ensureUserProfile(cred.user);
+        return cred.user;
+    }
+    return null;
 }
 
 // ── Reset hasła ─────────────────────────────────────────
