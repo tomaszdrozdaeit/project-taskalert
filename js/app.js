@@ -230,24 +230,28 @@ onAuthChange(async (user) => {
         document.getElementById('sidebar-avatar-letter').textContent = letter;
         document.getElementById('topbar-avatar-letter').textContent  = letter;
 
-        // Inicjalizuj domyślne kategorie (jeśli brak)
-        await initDefaultCategories();
+        // Inicjalizacje wstępne (bezpieczne)
+        try { await initDefaultCategories(); } catch (e) { console.warn('[App] initCategories error:', e); }
+        try { await initAllowedUsers(); } catch (e) { console.warn('[App] initAllowedUsers error:', e); }
 
-        // Inicjalizuj allowedUsers (jeśli pusta kolekcja)
-        await initAllowedUsers();
-
-        // Sprawdź rolę użytkownika (admin/user)
-        const userRole = await getUserRole(user.email);
+        let userRole = 'user';
+        try {
+            userRole = await getUserRole(user.email);
+        } catch (e) {
+            console.warn('[App] getUserRole error:', e);
+        }
         window._taskAlertUserRole = userRole;
 
         // Subskrybuj kategorie w czasie rzeczywistym
-        const { onCategoriesChange } = await import('./db.js');
-        onCategoriesChange(() => {
-            renderSidebarCategories();
-        });
-
-        // Renderuj dynamiczne menu kategorii
-        await renderSidebarCategories();
+        try {
+            const { onCategoriesChange } = await import('./db.js');
+            onCategoriesChange(() => {
+                renderSidebarCategories();
+            });
+            await renderSidebarCategories();
+        } catch (e) {
+            console.warn('[App] renderSidebarCategories error:', e);
+        }
 
         // Pokaż/ukryj link do panelu admin
         const adminNav = document.getElementById('nav-admin-users');
@@ -255,7 +259,7 @@ onAuthChange(async (user) => {
             adminNav.style.display = (userRole === 'admin' || userRole === 'super-admin') ? '' : 'none';
         }
 
-        // Nawiguj do strony z hash lub dashboard
+        // Nawiguj do strony z hash lub dashboard (ZAWSZE EXECUTE)
         navigateFromHash();
 
         // Pokaż baner instalacji PWA (jeśli na mobile)
@@ -661,6 +665,15 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
         ? reminder.expiryDate.toDate().toISOString().split('T')[0]
         : (typeof reminder.expiryDate === 'string' ? reminder.expiryDate.split('T')[0] : '');
 
+    const sharedBadge = reminder.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed;font-size:0.85rem;margin-left:8px;">👥 Alert Zespołowy</span>` : '';
+    const participantsHtml = reminder.isShared && reminder.participants ? `
+        <div style="margin-top:12px;padding:10px 12px;background:var(--bg-card-hover);border-radius:8px;">
+            <div style="font-size:0.82rem;font-weight:700;margin-bottom:6px;">👥 Uczestnicy alertu zespołowego (${reminder.participants.length}):</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                ${reminder.participants.map(p => `<span class="participant-chip">${escHtml(p.name || p.email)} (${escHtml(p.role || 'executor')})</span>`).join('')}
+            </div>
+        </div>` : '';
+
     showModal({
         title: `📌 Szczegóły: ${reminder.title}`,
         wide: true,
@@ -669,9 +682,11 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 <div>
                     <span class="category-badge" style="font-size:0.85rem;">${escHtml(reminder.categoryName || 'Inne')}</span>
                     <span style="font-size:0.85rem;color:var(--text-muted);margin-left:8px;">${escHtml(reminder.subTypeLabel || reminder.subType || '')}</span>
+                    ${sharedBadge}
                 </div>
                 <div class="reminder-countdown countdown-${statusCls}">${countdownText}</div>
             </div>
+            ${participantsHtml}
 
             <div class="form-group">
                 <label for="edit-title">Tytuł *</label>
@@ -976,8 +991,16 @@ async function showAddReminderModal(prefillCategory) {
         `<span class="alert-chip" data-days="${d}">${d} dni <button class="chip-remove" type="button" title="Usuń">×</button></span>`
     ).join('');
 
+    let selectedParticipants = [{
+        uid: currentUser?.uid || currentUser?.email,
+        email: currentUser?.email || '',
+        name: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+        role: 'owner'
+    }];
+
     showModal({
         title: 'Nowe przypomnienie',
+        wide: true,
         body: `
             <div class="form-group">
                 <label for="add-title">Tytuł *</label>
@@ -1012,7 +1035,39 @@ async function showAddReminderModal(prefillCategory) {
                     <button class="alert-chip-add" type="button" id="add-alert-chip-btn">+ Dodaj alert</button>
                 </div>
             </div>
-            <button class="collapsible-header" type="button" id="add-advanced-toggle">
+
+            <!-- Opcja alertu zespołowego -->
+            <div style="margin-top:16px;padding:12px;background:var(--bg-card-hover);border-radius:var(--radius-sm);border:1px solid var(--border-color);">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="add-is-shared" class="toggle">
+                    <label for="add-is-shared" style="font-weight:700;cursor:pointer;font-size:0.9rem;">👥 Utwórz jako alert zespołowy (współdzielony z zespołem)</label>
+                </div>
+                <div id="add-shared-section" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-color);">
+                    <h4 style="font-size:0.85rem;font-weight:700;margin-bottom:8px;">👥 Uczestnicy alertu zespołowego</h4>
+                    <div id="add-participants-list" style="margin-bottom:8px;"></div>
+                    <div class="form-row" style="align-items:flex-end;">
+                        <div class="form-group" style="flex:2;">
+                            <label for="add-user-select">Dodaj osobę z bazy</label>
+                            <select id="add-user-select" class="filter-select w-full">
+                                <option value="">— Wybierz użytkownika —</option>
+                                ${allowedUsers.filter(u => u.isActive !== false && u.email !== currentUser?.email).map(u =>
+                                    `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.id || u.email)}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)} (${escHtml(u.email)})</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label for="add-user-role">Rola</label>
+                            <select id="add-user-role" class="filter-select w-full">
+                                <option value="executor">🔧 Wykonawca</option>
+                                <option value="observer">👁️ Obserwator</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-secondary" id="add-participant-btn" type="button" style="height:42px;">Dodaj</button>
+                    </div>
+                </div>
+            </div>
+
+            <button class="collapsible-header" type="button" id="add-advanced-toggle" style="margin-top:12px;">
                 Ustawienia zaawansowane
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
@@ -1049,6 +1104,67 @@ async function showAddReminderModal(prefillCategory) {
             toggleBtn.addEventListener('click', () => {
                 toggleBtn.classList.toggle('open');
                 content.classList.toggle('open');
+            });
+
+            // Shared alert toggle & participants
+            const isSharedCheckbox = body.querySelector('#add-is-shared');
+            const sharedSection = body.querySelector('#add-shared-section');
+            const participantsContainer = body.querySelector('#add-participants-list');
+
+            const ROLE_BADGES = {
+                'owner':    { label: 'Właściciel', icon: '👑', color: '#f59e0b' },
+                'executor': { label: 'Wykonawca', icon: '🔧', color: '#4f8cff' },
+                'observer': { label: 'Obserwator', icon: '👁️', color: '#7c3aed' }
+            };
+
+            const renderParticipants = () => {
+                participantsContainer.innerHTML = selectedParticipants.map(p => {
+                    const rInfo = ROLE_BADGES[p.role] || ROLE_BADGES.executor;
+                    const isMe = p.email === currentUser?.email;
+                    return `
+                        <div class="participant-row" style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg-card-hover);border-radius:8px;margin-bottom:4px;">
+                            <span style="flex:1;font-size:0.85rem;">${escHtml(p.name || p.email)}</span>
+                            <span class="category-badge" style="background:${rInfo.color}22;color:${rInfo.color};font-size:0.72rem;padding:2px 6px;">${rInfo.icon} ${rInfo.label}</span>
+                            ${!isMe ? `<button class="chip-remove" type="button" data-email="${escHtml(p.email)}" style="cursor:pointer;border:none;background:none;font-size:1.1rem;color:var(--text-muted);">×</button>` : ''}
+                        </div>`;
+                }).join('');
+
+                participantsContainer.querySelectorAll('.chip-remove').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        selectedParticipants = selectedParticipants.filter(p => p.email !== btn.dataset.email);
+                        renderParticipants();
+                    });
+                });
+            };
+            renderParticipants();
+
+            isSharedCheckbox.addEventListener('change', () => {
+                sharedSection.style.display = isSharedCheckbox.checked ? 'block' : 'none';
+            });
+
+            body.querySelector('#add-participant-btn')?.addEventListener('click', () => {
+                const userSelect = body.querySelector('#add-user-select');
+                const roleSelect = body.querySelector('#add-user-role');
+                const email = userSelect.value;
+                if (!email) { showToast('Wybierz użytkownika.', 'warning'); return; }
+
+                const option = userSelect.options[userSelect.selectedIndex];
+                const name = option.dataset.name || email.split('@')[0];
+                const pUid = option.dataset.uid || email;
+
+                if (selectedParticipants.some(p => p.email === email)) {
+                    showToast('Użytkownik jest już dodany.', 'warning');
+                    return;
+                }
+
+                selectedParticipants.push({
+                    uid: pUid,
+                    email: email,
+                    name: name,
+                    role: roleSelect.value
+                });
+                userSelect.value = '';
+                renderParticipants();
             });
 
             // Alert chip add
@@ -1095,6 +1211,7 @@ async function showAddReminderModal(prefillCategory) {
                 const email1 = body.querySelector('#add-email1').value.trim();
                 const email2 = body.querySelector('#add-email2').value.trim();
                 const description = body.querySelector('#add-description').value.trim();
+                const isShared = isSharedCheckbox.checked;
 
                 if (!title) { showToast('Podaj tytuł przypomnienia.', 'warning'); return; }
                 if (!expiryStr) { showToast('Podaj datę wygaśnięcia.', 'warning'); return; }
@@ -1123,10 +1240,13 @@ async function showAddReminderModal(prefillCategory) {
                         expiryDate: new Date(expiryStr),
                         alertDays,
                         recurrenceMonths: recurrence,
-                        notes: description
+                        notes: description,
+                        isShared: isShared,
+                        createdByName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',
+                        participants: isShared ? selectedParticipants : []
                     });
 
-                    showToast('Przypomnienie dodane!', 'success');
+                    showToast(isShared ? 'Alert zespołowy dodany!' : 'Przypomnienie dodane!', 'success');
                     closeModal();
 
                     // Odśwież aktualny widok

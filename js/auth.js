@@ -29,13 +29,17 @@ async function isUserAllowed(email) {
     if (!email) return false;
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Sprawdź w kolekcji allowedUsers (docId = email)
-    const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
-    const snap = await getDoc(allowedRef);
+    // SUPER ADMIN ZAWSZE DOZWOLONY
+    if (normalizedEmail === SUPER_ADMIN_EMAIL.toLowerCase()) return true;
 
-    if (snap.exists()) {
-        const data = snap.data();
-        return data.isActive !== false; // domyślnie true jeśli brak pola
+    try {
+        const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
+        const snap = await getDoc(allowedRef);
+        if (snap.exists()) {
+            return snap.data().isActive !== false;
+        }
+    } catch (err) {
+        console.warn('[Auth] Błąd odczytu allowedUsers:', err);
     }
 
     return false;
@@ -43,14 +47,22 @@ async function isUserAllowed(email) {
 
 // ── Pobierz rolę użytkownika z allowedUsers ─────────────
 export async function getUserRole(email) {
-    if (!email) return null;
+    if (!email) return 'user';
     const normalizedEmail = email.trim().toLowerCase();
-    const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
-    const snap = await getDoc(allowedRef);
-    if (snap.exists()) {
-        return snap.data().role || 'user';
+
+    // SUPER ADMIN ZAWSZE MA ROLĘ 'super-admin'
+    if (normalizedEmail === SUPER_ADMIN_EMAIL.toLowerCase()) return 'super-admin';
+
+    try {
+        const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
+        const snap = await getDoc(allowedRef);
+        if (snap.exists()) {
+            return snap.data().role || 'user';
+        }
+    } catch (err) {
+        console.warn('[Auth] Błąd pobierania roli:', err);
     }
-    return null;
+    return 'user';
 }
 
 // ── Inicjalizacja profilu w Firestore przy pierwszym logowaniu ──
@@ -69,43 +81,46 @@ async function ensureUserProfile(user) {
             lastLoginAt: serverTimestamp()
         });
         console.log('[Auth] Nowy profil użytkownika utworzony w Firestore');
-        return true; // isNewUser
+        return true;
     } else {
-        // Aktualizuj datę ostatniego logowania
         await setDoc(profileRef, { lastLoginAt: serverTimestamp() }, { merge: true });
         return false;
     }
 }
 
-// ── Inicjalizacja allowedUsers (jeśli pusta) ────────────
+// ── Inicjalizacja allowedUsers (gwarantowane dodanie super-admina) ──
 export async function initAllowedUsers() {
-    const allowedCol = collection(db, 'allowedUsers');
-    const snap = await getDocs(allowedCol);
+    try {
+        const superAdminRef = doc(db, 'allowedUsers', SUPER_ADMIN_EMAIL.toLowerCase());
+        const snap = await getDoc(superAdminRef);
 
-    if (snap.empty && currentUser) {
-        // Jeśli kolekcja nie istnieje, utwórz super-admina
-        console.log('[Auth] Inicjalizacja allowedUsers — dodaję super-admina...');
-        const superAdminRef = doc(db, 'allowedUsers', SUPER_ADMIN_EMAIL);
-        await setDoc(superAdminRef, {
-            email: SUPER_ADMIN_EMAIL,
-            name: 'Tomasz Drozda',
-            role: 'super-admin',
-            isActive: true,
-            createdAt: serverTimestamp()
-        });
-
-        // Dodaj również bieżącego użytkownika jeśli to nie super-admin
-        const currentEmail = currentUser.email.trim().toLowerCase();
-        if (currentEmail !== SUPER_ADMIN_EMAIL) {
-            const currentRef = doc(db, 'allowedUsers', currentEmail);
-            await setDoc(currentRef, {
-                email: currentEmail,
-                name: currentUser.displayName || currentEmail.split('@')[0],
-                role: 'admin',
+        if (!snap.exists()) {
+            console.log('[Auth] Dodaję super-admina do allowedUsers...');
+            await setDoc(superAdminRef, {
+                email: SUPER_ADMIN_EMAIL.toLowerCase(),
+                name: 'Tomasz Drozda',
+                role: 'super-admin',
                 isActive: true,
                 createdAt: serverTimestamp()
             });
         }
+
+        if (currentUser) {
+            const currentEmail = currentUser.email.trim().toLowerCase();
+            const currentRef = doc(db, 'allowedUsers', currentEmail);
+            const currentSnap = await getDoc(currentRef);
+            if (!currentSnap.exists()) {
+                await setDoc(currentRef, {
+                    email: currentEmail,
+                    name: currentUser.displayName || currentEmail.split('@')[0],
+                    role: currentEmail === SUPER_ADMIN_EMAIL.toLowerCase() ? 'super-admin' : 'user',
+                    isActive: true,
+                    createdAt: serverTimestamp()
+                });
+            }
+        }
+    } catch (err) {
+        console.warn('[Auth] Nie można zaktualizować allowedUsers:', err);
     }
 }
 

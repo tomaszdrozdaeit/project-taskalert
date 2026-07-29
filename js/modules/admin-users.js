@@ -63,9 +63,12 @@ export function init() {
     const searchInput = document.getElementById('user-search');
     const roleFilter = document.getElementById('user-role-filter');
 
-    // Sprawdź czy użytkownik ma uprawnienia admin
-    const userRole = window._taskAlertUserRole;
-    if (userRole !== 'admin' && userRole !== 'super-admin') {
+    // Sprawdź czy użytkownik ma uprawnienia admin / super-admin
+    const currentEmail = (currentUser?.email || '').trim().toLowerCase();
+    const isSuperAdmin = currentEmail === SUPER_ADMIN_EMAIL.toLowerCase();
+    const userRole = window._taskAlertUserRole || (isSuperAdmin ? 'super-admin' : 'user');
+
+    if (userRole !== 'admin' && userRole !== 'super-admin' && !isSuperAdmin) {
         document.getElementById('users-list').innerHTML = `
             <div class="empty-state">
                 <div class="empty-state-icon">🔒</div>

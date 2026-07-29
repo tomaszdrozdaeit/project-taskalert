@@ -200,8 +200,12 @@ function buildAlertFlags(alertDays) {
     return flags;
 }
 
-// Dodaj nowe przypomnienie
+// Dodaj nowe przypomnienie (prywatne lub zespołowe)
 export async function addReminder(data) {
+    if (data.isShared || (data.participants && data.participants.length > 0)) {
+        return await addSharedAlert(data);
+    }
+
     const remindersRef = userCol('reminders');
     if (!remindersRef) throw new Error('Użytkownik nie jest zalogowany.');
 
@@ -241,21 +245,33 @@ export async function addReminder(data) {
     return docRef.id;
 }
 
-// Aktualizuj przypomnienie
+// Aktualizuj przypomnienie (prywatne lub zespołowe)
 export async function updateReminder(id, data) {
-    const reminderRef = userDoc('reminders', id);
+    const currentUid = uid();
+    if (!currentUid) throw new Error('Użytkownik nie jest zalogowany.');
 
-    // Jeśli alertDays się zmieniły, przebuduj flagi
+    // Sprawdź najpierw w przypomnieniach prywatnych
+    const privateRef = userDoc('reminders', id);
+    let isPrivate = false;
+    try {
+        const snap = await getDoc(privateRef);
+        if (snap.exists()) isPrivate = true;
+    } catch (e) {}
+
+    if (!isPrivate) {
+        // Zaktualizuj alert zespołowy w sharedAlerts
+        return await updateSharedAlert(id, data);
+    }
+
     if (data.alertDays) {
         data.alertFlags = buildAlertFlags(data.alertDays);
     }
-
     if (data.expiryDate !== undefined) {
         data.expiryDate = toFirestoreTimestamp(data.expiryDate);
     }
 
     try {
-        const snap = await getDoc(reminderRef);
+        const snap = await getDoc(privateRef);
         if (snap.exists()) {
             const currentData = snap.data();
             const history = [...(currentData.history || [])];
@@ -270,16 +286,28 @@ export async function updateReminder(id, data) {
         console.warn('[DB] Błąd odczytu historii przed edycją:', err);
     }
 
-    await updateDoc(reminderRef, {
+    await updateDoc(privateRef, {
         ...data,
         updatedAt: serverTimestamp()
     });
 }
 
-// Usuń przypomnienie
+// Usuń przypomnienie (prywatne lub zespołowe)
 export async function deleteReminder(id) {
-    const reminderRef = userDoc('reminders', id);
-    await deleteDoc(reminderRef);
+    const currentUid = uid();
+    if (!currentUid) throw new Error('Użytkownik nie jest zalogowany.');
+
+    const privateRef = userDoc('reminders', id);
+    try {
+        const snap = await getDoc(privateRef);
+        if (snap.exists()) {
+            await deleteDoc(privateRef);
+            return;
+        }
+    } catch (e) {}
+
+    // Próba usunięcia ze sharedAlerts
+    await deleteSharedAlert(id);
 }
 
 // Oznacz jako wykonane — reset flag + historia + nowy cykl
@@ -287,8 +315,7 @@ export async function markAsExecuted(id, executedDate = new Date(), nextExpiryDa
     const reminder = await getReminder(id);
     if (!reminder) throw new Error('Nie znaleziono przypomnienia.');
 
-    const reminderRef = userDoc('reminders', id);
-    const alertDays = reminder.alertDays || [30, 14];
+    const alertDays = reminder.alertDays || [30, 14, 7, 3, 1];
 
     const historyEntry = {
         type: 'executed',
@@ -300,6 +327,28 @@ export async function markAsExecuted(id, executedDate = new Date(), nextExpiryDa
 
     const updatedHistory = [...(reminder.history || []), historyEntry];
 
+    if (reminder.isShared) {
+        const sharedRef = doc(db, SHARED_ALERTS_COL, id);
+        if (nextExpiryDate) {
+            await updateDoc(sharedRef, {
+                expiryDate: toFirestoreTimestamp(nextExpiryDate),
+                lastExecutedAt: toFirestoreTimestamp(executedDate),
+                alertFlags: buildAlertFlags(alertDays),
+                history: updatedHistory,
+                updatedAt: serverTimestamp()
+            });
+        } else {
+            await updateDoc(sharedRef, {
+                status: 'completed',
+                lastExecutedAt: toFirestoreTimestamp(executedDate),
+                history: updatedHistory,
+                updatedAt: serverTimestamp()
+            });
+        }
+        return;
+    }
+
+    const reminderRef = userDoc('reminders', id);
     if (nextExpiryDate) {
         await updateDoc(reminderRef, {
             expiryDate: toFirestoreTimestamp(nextExpiryDate),
@@ -318,58 +367,95 @@ export async function markAsExecuted(id, executedDate = new Date(), nextExpiryDa
     }
 }
 
-// Pobierz aktywne przypomnienia
+// Pobierz aktywne przypomnienia (prywatne + zespołowe)
 export async function getActiveReminders() {
-    const remindersRef = userCol('reminders');
-    if (!remindersRef) return [];
-    const snap = await getDocs(remindersRef);
-    const reminders = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(r => r.status === 'active');
-    return reminders.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
+    const currentUid = uid();
+    if (!currentUid) return [];
+
+    let privateReminders = [];
+    try {
+        const remindersRef = userCol('reminders');
+        if (remindersRef) {
+            const snap = await getDocs(remindersRef);
+            privateReminders = snap.docs.map(d => ({ id: d.id, isShared: false, ...d.data() })).filter(r => r.status === 'active');
+        }
+    } catch (e) {}
+
+    let sharedReminders = [];
+    try {
+        const sharedRef = collection(db, SHARED_ALERTS_COL);
+        const snap = await getDocs(sharedRef);
+        sharedReminders = snap.docs.map(d => ({ id: d.id, isShared: true, ...d.data() })).filter(a => {
+            const uids = a.participantUids || (a.participants || []).map(p => p.uid);
+            return uids.includes(currentUid) && a.status === 'active';
+        });
+    } catch (e) {}
+
+    const combined = [...privateReminders, ...sharedReminders];
+    return combined.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
 }
 
-// Nasłuchuj zmian w przypomnieniach (real-time) bez wymogu indeksów złożonych
+// Nasłuchuj zmian w przypomnieniach (prywatne + zespołowe w czasie rzeczywistym)
 export function onRemindersChange(callback, statusFilter = 'active') {
-    const remindersRef = userCol('reminders');
-    if (!remindersRef) {
+    const currentUid = uid();
+    if (!currentUid) {
         callback([]);
         return () => {};
     }
 
-    return onSnapshot(remindersRef, (snap) => {
-        let reminders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let privateReminders = [];
+    let sharedReminders = [];
 
+    const notify = () => {
+        let combined = [...privateReminders, ...sharedReminders];
         if (statusFilter !== 'all') {
-            reminders = reminders.filter(r => r.status === statusFilter);
+            combined = combined.filter(r => r.status === statusFilter);
         }
-
-        reminders.sort((a, b) => {
+        combined.sort((a, b) => {
             if (statusFilter === 'completed') {
-                const dateA = parseDate(a.updatedAt || a.lastExecutedAt);
-                const dateB = parseDate(b.updatedAt || b.lastExecutedAt);
-                return dateB - dateA;
+                return parseDate(b.updatedAt || b.lastExecutedAt) - parseDate(a.updatedAt || a.lastExecutedAt);
             } else {
                 return parseDate(a.expiryDate) - parseDate(b.expiryDate);
             }
         });
+        callback(combined);
+    };
 
-        callback(reminders);
+    const remindersRef = collection(db, 'users', currentUid, 'reminders');
+    const unsubPrivate = onSnapshot(remindersRef, (snap) => {
+        privateReminders = snap.docs.map(d => ({ id: d.id, isShared: false, ...d.data() }));
+        notify();
     }, (err) => {
-        console.error('[DB] Błąd podczas nasłuchiwania przypomnień:', err);
-        callback([]);
+        console.warn('[DB] Błąd nasłuchiwania prywatnych przypomnień:', err);
+        privateReminders = [];
+        notify();
     });
+
+    const sharedRef = collection(db, SHARED_ALERTS_COL);
+    const unsubShared = onSnapshot(sharedRef, (snap) => {
+        sharedReminders = snap.docs
+            .map(d => ({ id: d.id, isShared: true, ...d.data() }))
+            .filter(a => {
+                const uids = a.participantUids || (a.participants || []).map(p => p.uid);
+                return uids.includes(currentUid);
+            });
+        notify();
+    }, (err) => {
+        console.warn('[DB] Błąd nasłuchiwania alertów zespołowych:', err);
+        sharedReminders = [];
+        notify();
+    });
+
+    return () => {
+        unsubPrivate();
+        unsubShared();
+    };
 }
 
-// Pobierz przypomnienia po kategorii
+// Pobierz przypomnienia po kategorii (prywatne + zespołowe)
 export async function getRemindersByCategory(categoryId) {
-    const remindersRef = userCol('reminders');
-    if (!remindersRef) return [];
-    const snap = await getDocs(remindersRef);
-    const reminders = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(r => r.status === 'active' && r.categoryId === categoryId);
-    return reminders.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
+    const allActive = await getActiveReminders();
+    return allActive.filter(r => r.categoryId === categoryId || r.categoryName === categoryId);
 }
 
 // Pobierz nadchodzące alerty (w ciągu N dni)
@@ -397,22 +483,52 @@ export async function getOverdueReminders() {
     });
 }
 
-// Pobierz zakończone (historia)
+// Pobierz zakończone (historia — prywatne + zespołowe)
 export async function getCompletedReminders() {
-    const remindersRef = userCol('reminders');
-    if (!remindersRef) return [];
-    const snap = await getDocs(remindersRef);
-    const reminders = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .filter(r => r.status === 'completed');
-    return reminders.sort((a, b) => parseDate(b.updatedAt || b.lastExecutedAt) - parseDate(a.updatedAt || a.lastExecutedAt));
+    const currentUid = uid();
+    if (!currentUid) return [];
+
+    let privateRem = [];
+    try {
+        const remindersRef = userCol('reminders');
+        if (remindersRef) {
+            const snap = await getDocs(remindersRef);
+            privateRem = snap.docs.map(d => ({ id: d.id, isShared: false, ...d.data() })).filter(r => r.status === 'completed');
+        }
+    } catch (e) {}
+
+    let sharedRem = [];
+    try {
+        const sharedRef = collection(db, SHARED_ALERTS_COL);
+        const snap = await getDocs(sharedRef);
+        sharedRem = snap.docs.map(d => ({ id: d.id, isShared: true, ...d.data() })).filter(a => {
+            const uids = a.participantUids || (a.participants || []).map(p => p.uid);
+            return uids.includes(currentUid) && a.status === 'completed';
+        });
+    } catch (e) {}
+
+    const combined = [...privateRem, ...sharedRem];
+    return combined.sort((a, b) => parseDate(b.updatedAt || b.lastExecutedAt) - parseDate(a.updatedAt || a.lastExecutedAt));
 }
 
-// Pobierz jedno przypomnienie
+// Pobierz jedno przypomnienie (z kwerendą private -> shared fallback)
 export async function getReminder(id) {
-    const reminderRef = userDoc('reminders', id);
-    const snap = await getDoc(reminderRef);
-    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+    const currentUid = uid();
+    if (!currentUid) return null;
+
+    try {
+        const privateRef = userDoc('reminders', id);
+        const snap = await getDoc(privateRef);
+        if (snap.exists()) return { id: snap.id, isShared: false, ...snap.data() };
+    } catch (e) {}
+
+    try {
+        const sharedRef = doc(db, SHARED_ALERTS_COL, id);
+        const snap = await getDoc(sharedRef);
+        if (snap.exists()) return { id: snap.id, isShared: true, ...snap.data() };
+    } catch (e) {}
+
+    return null;
 }
 
 // ============================================================
