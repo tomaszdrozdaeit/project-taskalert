@@ -94,11 +94,17 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Local assets — Cache First z Network Fallback
+    // Local assets — Network First z Cache Fallback (gwarantuje najnowsze pliki po odświeżeniu)
     event.respondWith(
-        caches.match(event.request).then(cached => {
-            return cached || fetch(event.request);
-        })
+        fetch(event.request)
+            .then(response => {
+                if (response && response.status === 200 && response.type === 'basic') {
+                    const clone = response.clone();
+                    caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                }
+                return response;
+            })
+            .catch(() => caches.match(event.request))
     );
 });
 

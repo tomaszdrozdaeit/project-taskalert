@@ -1513,12 +1513,32 @@ window.showConfirm = showConfirm;
 window.showToast = showToast;
 
 // ============================================================
-// SERVICE WORKER REGISTRATION
+// SERVICE WORKER REGISTRATION (Auto-unregister on localhost)
 // ============================================================
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
-            .then(reg => console.log('[SW] Registered:', reg.scope))
-            .catch(err => console.warn('[SW] Registration failed:', err));
-    });
+    const isLocalhost = Boolean(
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '[::1]' ||
+        window.location.hostname.match(/^127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}$/)
+    );
+
+    if (isLocalhost) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+            for (let registration of registrations) {
+                registration.unregister();
+                console.log('[SW] Odrejestrowano Service Worker na localhost dla zachowania świeżości kodu.');
+            }
+        });
+        if (window.caches) {
+            caches.keys().then(names => {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    } else {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./service-worker.js')
+                .then(reg => console.log('[SW] Registered:', reg.scope))
+                .catch(err => console.warn('[SW] Registration failed:', err));
+        });
+    }
 }
