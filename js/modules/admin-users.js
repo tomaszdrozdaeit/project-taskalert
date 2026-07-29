@@ -4,7 +4,7 @@
 // ============================================================
 
 import { onAllowedUsersChange, addAllowedUser, updateAllowedUser, deleteAllowedUser } from '../db.js';
-import { SUPER_ADMIN_EMAIL } from '../auth.js';
+import { SUPER_ADMIN_EMAIL, currentUser } from '../auth.js';
 
 let unsubscribe = null;
 
