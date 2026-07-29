@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole } from './auth.js';
+import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole, ensureUserProfile } from './auth.js';
 import { initDefaultCategories, getCategories, getAllowedUsers } from './db.js';
 
 // ============================================================
@@ -231,6 +231,7 @@ onAuthChange(async (user) => {
         document.getElementById('topbar-avatar-letter').textContent  = letter;
 
         // Inicjalizacje wstępne (bezpieczne)
+        try { await ensureUserProfile(user); } catch (e) { console.warn('[App] ensureUserProfile error:', e); }
         try { await initDefaultCategories(); } catch (e) { console.warn('[App] initCategories error:', e); }
         try { await initAllowedUsers(); } catch (e) { console.warn('[App] initAllowedUsers error:', e); }
 
@@ -984,7 +985,7 @@ async function showAddReminderModal(prefillCategory) {
     const defaultAlertDays = profile?.defaultAlertDays || [30, 14, 7, 3, 1];
 
     let categoryOptions = categories.map(c =>
-        `<option value="${c.id}" ${prefillCategory === c.id ? 'selected' : ''}>${escHtml(c.icon || '📋')} ${escHtml(c.name)}</option>`
+        `<option value="${c.id}" ${prefillCategory === c.id || (prefillCategory && c.name && c.name.toLowerCase() === prefillCategory.toLowerCase()) ? 'selected' : ''}>${escHtml(c.icon || '📋')} ${escHtml(c.name)}</option>`
     ).join('');
 
     const alertChipsHtml = defaultAlertDays.map(d =>

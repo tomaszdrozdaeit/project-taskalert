@@ -67,6 +67,9 @@ export async function getUserRole(email) {
 
 // ── Inicjalizacja profilu w Firestore przy pierwszym logowaniu ──
 async function ensureUserProfile(user) {
+    if (!user || !user.email) return false;
+    const currentEmail = user.email.trim().toLowerCase();
+
     const profileRef = doc(db, 'users', user.uid, 'profile', 'main');
     const profileSnap = await getDoc(profileRef);
 
@@ -81,11 +84,35 @@ async function ensureUserProfile(user) {
             lastLoginAt: serverTimestamp()
         });
         console.log('[Auth] Nowy profil użytkownika utworzony w Firestore');
-        return true;
     } else {
         await setDoc(profileRef, { lastLoginAt: serverTimestamp() }, { merge: true });
-        return false;
     }
+
+    // Zsynchronizuj wpis użytkownika z kolekcją allowedUsers
+    try {
+        const allowedRef = doc(db, 'allowedUsers', currentEmail);
+        const allowedSnap = await getDoc(allowedRef);
+
+        if (!allowedSnap.exists()) {
+            await setDoc(allowedRef, {
+                email: currentEmail,
+                name: user.displayName || currentEmail.split('@')[0],
+                role: currentEmail === SUPER_ADMIN_EMAIL.toLowerCase() ? 'super-admin' : 'user',
+                isActive: true,
+                createdAt: serverTimestamp(),
+                lastLoginAt: serverTimestamp()
+            });
+        } else {
+            await setDoc(allowedRef, {
+                name: user.displayName || allowedSnap.data().name || currentEmail.split('@')[0],
+                lastLoginAt: serverTimestamp()
+            }, { merge: true });
+        }
+    } catch (err) {
+        console.warn('[Auth] Błąd synchronizacji z allowedUsers:', err);
+    }
+
+    return true;
 }
 
 // ── Inicjalizacja allowedUsers (gwarantowane dodanie super-admina) ──

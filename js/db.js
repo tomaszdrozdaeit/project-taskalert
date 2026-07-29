@@ -220,22 +220,22 @@ export async function addReminder(data) {
     }];
 
     const reminderData = {
-        title: data.title || '',
-        description: data.description || '',
-        categoryId: data.categoryId || '',
-        categoryName: data.categoryName || '',
-        subType: data.subType || 'custom',
-        subTypeLabel: data.subTypeLabel || 'Niestandardowy',
-        primaryEmail: data.primaryEmail || '',
-        secondaryEmail: data.secondaryEmail || '',
+        title: String(data.title || '').trim(),
+        description: String(data.description || data.notes || '').trim(),
+        categoryId: String(data.categoryId || '').trim(),
+        categoryName: String(data.categoryName || '').trim(),
+        subType: String(data.subType || 'custom').trim(),
+        subTypeLabel: String(data.subTypeLabel || 'Niestandardowy').trim(),
+        primaryEmail: String(data.primaryEmail || '').trim(),
+        secondaryEmail: String(data.secondaryEmail || '').trim(),
         expiryDate: expiryTimestamp,
         status: 'active',
         alertDays: alertDays,
         alertFlags: buildAlertFlags(alertDays),
         lastExecutedAt: null,
         nextExpiryDate: null,
-        recurrenceMonths: data.recurrenceMonths || 0,
-        notes: data.notes || '',
+        recurrenceMonths: parseInt(data.recurrenceMonths) || 0,
+        notes: String(data.notes || data.description || '').trim(),
         history: initialHistory,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -676,32 +676,42 @@ export async function addSharedAlert(data) {
     const alertDays = data.alertDays || [30, 14, 7, 3, 1];
     const expiryTimestamp = toFirestoreTimestamp(data.expiryDate);
 
+    const cleanParticipants = (data.participants || []).map(p => ({
+        uid: String(p.uid || p.email || '').trim(),
+        email: String(p.email || '').trim(),
+        name: String(p.name || p.email || '').trim(),
+        role: String(p.role || 'executor').trim()
+    })).filter(p => p.email.length > 0);
+
+    const participantUids = cleanParticipants.map(p => p.uid).filter(Boolean);
+    const currentUid = uid() || auth.currentUser?.uid || 'anon';
+
     const initialHistory = [{
         type: 'created',
         timestamp: Timestamp.now(),
         note: 'Utworzenie alertu zespołowego',
         expiryDate: expiryTimestamp,
-        byUid: uid(),
-        byName: data.createdByName || ''
+        byUid: currentUid,
+        byName: String(data.createdByName || auth.currentUser?.displayName || auth.currentUser?.email || '').trim()
     }];
 
     const alertData = {
-        title: data.title || '',
-        description: data.description || '',
-        categoryId: data.categoryId || '',
-        categoryName: data.categoryName || '',
-        subType: data.subType || 'custom',
-        subTypeLabel: data.subTypeLabel || 'Niestandardowy',
+        title: String(data.title || '').trim(),
+        description: String(data.description || data.notes || '').trim(),
+        categoryId: String(data.categoryId || '').trim(),
+        categoryName: String(data.categoryName || '').trim(),
+        subType: String(data.subType || 'custom').trim(),
+        subTypeLabel: String(data.subTypeLabel || 'Niestandardowy').trim(),
         expiryDate: expiryTimestamp,
         status: 'active',
         alertDays: alertDays,
         alertFlags: buildAlertFlags(alertDays),
-        recurrenceMonths: data.recurrenceMonths || 0,
-        notes: data.notes || '',
-        createdBy: uid(),
-        createdByName: data.createdByName || '',
-        participants: data.participants || [],
-        participantUids: (data.participants || []).map(p => p.uid),
+        recurrenceMonths: parseInt(data.recurrenceMonths) || 0,
+        notes: String(data.notes || data.description || '').trim(),
+        createdBy: currentUid,
+        createdByName: String(data.createdByName || auth.currentUser?.displayName || auth.currentUser?.email || '').trim(),
+        participants: cleanParticipants,
+        participantUids: participantUids,
         history: initialHistory,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
