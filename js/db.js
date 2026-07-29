@@ -267,7 +267,33 @@ export async function addReminder(data) {
     return docRef.id;
 }
 
+// Pobierz jedno przypomnienie po ID (prywatne lub zespołowe)
+export async function getReminder(id) {
+    const currentUid = uid();
+    if (!currentUid) return null;
 
+    // Próba odczytu z przypomnień prywatnych
+    try {
+        const privateRef = userDoc('reminders', id);
+        const snap = await getDoc(privateRef);
+        if (snap.exists()) {
+            return { id: snap.id, isShared: false, ...snap.data() };
+        }
+    } catch (e) {}
+
+    // Próba odczytu ze sharedAlerts
+    try {
+        const sharedRef = doc(db, 'sharedAlerts', id);
+        const snap = await getDoc(sharedRef);
+        if (snap.exists()) {
+            return { id: snap.id, isShared: true, ...snap.data() };
+        }
+    } catch (e) {
+        console.warn('[DB] Błąd odczytu alertu zespołowego:', e);
+    }
+
+    return null;
+}
 
 // Aktualizuj przypomnienie (prywatne lub zespołowe)
 export async function updateReminder(id, data) {
@@ -614,10 +640,15 @@ export async function sendManualNotification(reminder) {
 
 // Pobierz wszystkich dozwolonych użytkowników
 export async function getAllowedUsers() {
-    const allowedRef = collection(db, 'allowedUsers');
-    const snap = await getDocs(allowedRef);
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    try {
+        const allowedRef = collection(db, 'allowedUsers');
+        const snap = await getDocs(allowedRef);
+        return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } catch (err) {
+        console.warn('[DB] Błąd odczytu allowedUsers:', err);
+        return [];
+    }
 }
 
 // Pobierz jednego dozwolonego użytkownika po email

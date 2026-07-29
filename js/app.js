@@ -656,7 +656,7 @@ export function getCountdownClass(days) {
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================
 export async function showReminderDetailsModal(reminderId, reminderData) {
-    const { getReminder, getCategories, getAllowedUsers, updateReminder, deleteReminder, sendManualNotification } = await import('./db.js');
+    const { getReminder, getCategories, getAllowedUsers, parseDate, updateReminder, deleteReminder, sendManualNotification } = await import('./db.js');
 
     let reminder = reminderData || await getReminder(reminderId);
     if (!reminder) {
@@ -677,9 +677,10 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
         `<span class="alert-chip" data-days="${d}">${d} dni <button class="chip-remove" type="button">×</button></span>`
     ).join('');
 
-    const expiryDateIso = reminder.expiryDate?.toDate
-        ? reminder.expiryDate.toDate().toISOString().split('T')[0]
-        : (typeof reminder.expiryDate === 'string' ? reminder.expiryDate.split('T')[0] : '');
+    const parsedExpiryDate = parseDate(reminder.expiryDate);
+    const expiryDateIso = (parsedExpiryDate && !isNaN(parsedExpiryDate.getTime()) && parsedExpiryDate.getTime() > 0)
+        ? parsedExpiryDate.toISOString().split('T')[0]
+        : '';
 
     const sharedBadge = reminder.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed;font-size:0.85rem;margin-left:8px;">👥 Alert Zespołowy</span>` : '';
     const participantsHtml = reminder.isShared && reminder.participants ? `
@@ -1323,6 +1324,38 @@ window.showToast = showToast;
 // ============================================================
 // HELPERS
 // ============================================================
+export function daysUntil(date) {
+    if (!date) return Infinity;
+    if (date.toDate && typeof date.toDate === 'function') date = date.toDate();
+    if (typeof date === 'object' && typeof date.seconds === 'number') {
+        date = new Date(date.seconds * 1000);
+    } else if (typeof date === 'string' || typeof date === 'number') {
+        date = new Date(date);
+    }
+    if (!(date instanceof Date) || isNaN(date.getTime())) return Infinity;
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const target = new Date(date);
+    target.setHours(0, 0, 0, 0);
+    return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+}
+
+export function getAlertStatus(daysLeft) {
+    if (daysLeft < 0) return 'overdue';
+    if (daysLeft <= 7) return 'danger';
+    if (daysLeft <= 14) return 'danger';
+    if (daysLeft <= 30) return 'warning';
+    return 'ok';
+}
+
+export function getCountdownText(daysLeft) {
+    if (daysLeft < 0) return `Przeterminowane (${Math.abs(daysLeft)} dni temu)`;
+    if (daysLeft === 0) return 'Termin dzisiaj!';
+    if (daysLeft === 1) return 'Jutro!';
+    return `za ${daysLeft} dni`;
+}
+
 export function escHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
