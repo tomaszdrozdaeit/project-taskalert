@@ -73,7 +73,7 @@ async function runDailyCheck() {
         expiryDate.setHours(0, 0, 0, 0);
         const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
 
-        const alertDays = reminder.alertDays || [30, 14];
+        const alertDays = reminder.alertDays || [30, 14, 7, 3, 1];
         const alertFlags = reminder.alertFlags || {};
         let flagsUpdated = false;
 

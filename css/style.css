@@ -1886,3 +1886,216 @@ img {
 .collapsible-content.open {
     max-height: 500px;
 }
+
+/* ============================================================
+   PWA INSTALL BANNER
+   ============================================================ */
+.pwa-banner {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 10000;
+    padding: 16px;
+    transform: translateY(100%);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pwa-banner-show {
+    transform: translateY(0);
+}
+
+.pwa-banner-hide {
+    transform: translateY(100%);
+}
+
+.pwa-banner-content {
+    max-width: 480px;
+    margin: 0 auto;
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-xl);
+}
+
+[data-theme="dark"] .pwa-banner-content {
+    background: rgba(15, 18, 25, 0.92);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.pwa-banner-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pwa-banner-icon {
+    flex-shrink: 0;
+}
+
+.pwa-banner-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.pwa-banner-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin: 2px 0 0;
+}
+
+.pwa-banner-x {
+    margin-left: auto;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: var(--text-muted);
+    transition: color var(--transition-fast);
+}
+
+.pwa-banner-x:hover {
+    color: var(--text-primary);
+}
+
+.pwa-banner-x svg {
+    width: 20px;
+    height: 20px;
+}
+
+.pwa-banner-text {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    margin: 0 0 16px;
+    line-height: 1.5;
+}
+
+.pwa-banner-steps {
+    margin-bottom: 16px;
+}
+
+.pwa-banner-steps p {
+    font-size: 0.88rem;
+    color: var(--text-primary);
+    margin: 0 0 8px;
+}
+
+.pwa-banner-steps ol {
+    margin: 0;
+    padding-left: 20px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.7;
+}
+
+.pwa-banner-steps ol strong {
+    color: var(--accent-primary);
+}
+
+.pwa-banner-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.pwa-share-icon {
+    display: inline-flex;
+    align-items: center;
+    color: var(--accent-primary);
+}
+
+/* ============================================================
+   TAB BAR
+   ============================================================ */
+.tab-bar {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-input);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-card-hover);
+}
+
+.tab-btn.active {
+    background: var(--accent-primary);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(79, 140, 255, 0.3);
+}
+
+/* ============================================================
+   PARTICIPANT CHIPS
+   ============================================================ */
+.participant-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    background: var(--accent-primary-bg);
+    color: var(--accent-primary);
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.participant-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background: var(--bg-card-hover);
+    border-radius: var(--radius-sm);
+    margin-bottom: 6px;
+    transition: background var(--transition-fast);
+}
+
+.participant-row:hover {
+    background: var(--bg-input);
+}
+
+/* ============================================================
+   RESPONSIVE OVERRIDES FOR NEW COMPONENTS
+   ============================================================ */
+@media (max-width: 768px) {
+    .tab-bar {
+        width: 100%;
+    }
+
+    .tab-btn {
+        padding: 6px 12px;
+        font-size: 0.78rem;
+    }
+
+    .pwa-banner {
+        padding: 12px;
+    }
+
+    .pwa-banner-content {
+        padding: 16px;
+    }
+}

@@ -3,8 +3,8 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle } from './auth.js';
-import { initDefaultCategories } from './db.js';
+import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole } from './auth.js';
+import { initDefaultCategories, getCategories, getAllowedUsers } from './db.js';
 
 // ============================================================
 // THEME MANAGEMENT
@@ -197,7 +197,8 @@ function getAuthErrorMessage(code) {
         'auth/invalid-credential':    'Nieprawidłowe dane logowania. Sprawdź e-mail i hasło.',
         'auth/weak-password':         'Hasło jest za słabe. Użyj minimum 6 znaków.',
         'auth/too-many-requests':     'Zbyt wiele prób logowania. Spróbuj za chwilę.',
-        'auth/network-request-failed':'Błąd sieci. Sprawdź połączenie z internetem.'
+        'auth/network-request-failed':'Błąd sieci. Sprawdź połączenie z internetem.',
+        'auth/user-not-allowed':      'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
     };
     return messages[code] || `Wystąpił błąd autoryzacji: ${code}`;
 }
@@ -232,6 +233,13 @@ onAuthChange(async (user) => {
         // Inicjalizuj domyślne kategorie (jeśli brak)
         await initDefaultCategories();
 
+        // Inicjalizuj allowedUsers (jeśli pusta kolekcja)
+        await initAllowedUsers();
+
+        // Sprawdź rolę użytkownika (admin/user)
+        const userRole = await getUserRole(user.email);
+        window._taskAlertUserRole = userRole;
+
         // Subskrybuj kategorie w czasie rzeczywistym
         const { onCategoriesChange } = await import('./db.js');
         onCategoriesChange(() => {
@@ -241,8 +249,42 @@ onAuthChange(async (user) => {
         // Renderuj dynamiczne menu kategorii
         await renderSidebarCategories();
 
+        // Pokaż/ukryj link do panelu admin
+        const adminNav = document.getElementById('nav-admin-users');
+        if (adminNav) {
+            adminNav.style.display = (userRole === 'admin' || userRole === 'super-admin') ? '' : 'none';
+        }
+
         // Nawiguj do strony z hash lub dashboard
         navigateFromHash();
+
+        // Pokaż baner instalacji PWA (jeśli na mobile)
+        try {
+            const { showInstallBanner } = await import('./modules/pwa-install-banner.js');
+            showInstallBanner();
+        } catch (err) {
+            console.warn('[PWA Banner] Błąd:', err);
+        }
+
+        // Inicjalizuj push notifications (foreground handler)
+        try {
+            const { setupForegroundHandler, isPushEnabled } = await import('./modules/push-notifications.js');
+            const pushEnabled = await isPushEnabled();
+            if (pushEnabled) {
+                await setupForegroundHandler();
+            }
+        } catch (err) {
+            console.warn('[Push] Błąd inicjalizacji:', err);
+        }
+
+        // Nasłuchuj kliknięcia push notification z service workera
+        if (navigator.serviceWorker) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data?.type === 'PUSH_NOTIFICATION_CLICK' && event.data?.alertId) {
+                    showReminderDetailsModal(event.data.alertId);
+                }
+            });
+        }
     } else {
         // Wylogowany
         loginScreen.style.display = '';
@@ -301,13 +343,15 @@ window.addEventListener('taskalert-categories-changed', renderSidebarCategories)
 // ============================================================
 const moduleCache = {};
 const ROUTES = {
-    'dashboard':  { file: './modules/dashboard.js',  title: 'Pulpit' },
-    'samochody':  { file: './modules/samochody.js',  title: 'Samochody' },
-    'kadry':      { file: './modules/kadry.js',      title: 'Kadry' },
-    'inne':       { file: './modules/inne.js',        title: 'Inne' },
-    'kategorie':  { file: './modules/kategorie.js',  title: 'Kategorie' },
-    'historia':   { file: './modules/historia.js',   title: 'Historia' },
-    'ustawienia': { file: './modules/ustawienia.js', title: 'Ustawienia' }
+    'dashboard':    { file: './modules/dashboard.js',    title: 'Pulpit' },
+    'samochody':    { file: './modules/samochody.js',    title: 'Samochody' },
+    'kadry':        { file: './modules/kadry.js',        title: 'Kadry' },
+    'inne':         { file: './modules/inne.js',         title: 'Inne' },
+    'kategorie':    { file: './modules/kategorie.js',    title: 'Kategorie' },
+    'team-alerts':  { file: './modules/team-alerts.js',  title: 'Alerty zespołowe' },
+    'historia':     { file: './modules/historia.js',     title: 'Historia' },
+    'admin-users':  { file: './modules/admin-users.js',  title: 'Użytkownicy' },
+    'ustawienia':   { file: './modules/ustawienia.js',   title: 'Ustawienia' }
 };
 
 let currentPage = null;
@@ -565,6 +609,29 @@ export function showConfirm(message, title = 'Potwierdzenie', { type = 'warning'
     });
 }
 
+// Helper for email dropdown options from allowedUsers
+function buildEmailOptions(allowedUsers = [], currentEmail = '', defaultEmail = '') {
+    const selected = (currentEmail || defaultEmail || '').trim().toLowerCase();
+    let options = `<option value="">— Wybierz adres e-mail —</option>`;
+    let found = false;
+
+    (allowedUsers || []).forEach(u => {
+        const uEmail = (u.email || '').trim();
+        if (!uEmail) return;
+        const isSel = (uEmail.toLowerCase() === selected);
+        if (isSel) found = true;
+        const displayName = u.name ? `${u.name} (${uEmail})` : uEmail;
+        options += `<option value="${uEmail.replace(/"/g, '&quot;')}" ${isSel ? 'selected' : ''}>${displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</option>`;
+    });
+
+    if (selected && !found) {
+        const val = (currentEmail || defaultEmail).trim();
+        options += `<option value="${val.replace(/"/g, '&quot;')}" selected>${val.replace(/</g, '&lt;').replace(/>/g, '&gt;')} (spoza bazy)</option>`;
+    }
+
+    return options;
+}
+
 // ============================================================
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================
@@ -578,13 +645,14 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
     }
 
     const categories = await getCategories();
+    const allowedUsers = await getAllowedUsers();
     const days = daysUntil(reminder.expiryDate);
     const statusCls = getAlertStatus(days);
     const countdownText = getCountdownText(days);
 
     const historyHtml = renderEventHistory(reminder.history || []);
 
-    const defaultAlertDays = reminder.alertDays || [30, 14];
+    const defaultAlertDays = reminder.alertDays || [30, 14, 7, 3, 1];
     const alertChipsHtml = defaultAlertDays.map(d =>
         `<span class="alert-chip" data-days="${d}">${d} dni <button class="chip-remove" type="button">×</button></span>`
     ).join('');
@@ -645,11 +713,15 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             <div class="form-row">
                 <div class="form-group">
                     <label for="edit-email1">E-mail główny</label>
-                    <input type="email" id="edit-email1" value="${escHtml(reminder.primaryEmail || '')}">
+                    <select id="edit-email1" class="filter-select w-full">
+                        ${buildEmailOptions(allowedUsers, reminder.primaryEmail)}
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="edit-email2">E-mail dodatkowy</label>
-                    <input type="email" id="edit-email2" value="${escHtml(reminder.secondaryEmail || '')}">
+                    <select id="edit-email2" class="filter-select w-full">
+                        ${buildEmailOptions(allowedUsers, reminder.secondaryEmail)}
+                    </select>
                 </div>
             </div>
 
@@ -890,10 +962,11 @@ async function showAddReminderModal(prefillCategory) {
     const { getUserProfile } = await import('./auth.js');
 
     const categories = await getCategories();
+    const allowedUsers = await getAllowedUsers();
     const profile = await getUserProfile();
 
     const defaultEmail = profile?.defaultPrimaryEmail || currentUser?.email || '';
-    const defaultAlertDays = profile?.defaultAlertDays || [30, 14];
+    const defaultAlertDays = profile?.defaultAlertDays || [30, 14, 7, 3, 1];
 
     let categoryOptions = categories.map(c =>
         `<option value="${c.id}" ${prefillCategory === c.id ? 'selected' : ''}>${escHtml(c.icon || '📋')} ${escHtml(c.name)}</option>`
@@ -947,11 +1020,15 @@ async function showAddReminderModal(prefillCategory) {
                 <div class="form-row" style="margin-top:12px">
                     <div class="form-group">
                         <label for="add-email1">E-mail główny</label>
-                        <input type="email" id="add-email1" value="${escHtml(defaultEmail)}" placeholder="email@example.com">
+                        <select id="add-email1" class="filter-select w-full">
+                            ${buildEmailOptions(allowedUsers, defaultEmail)}
+                        </select>
                     </div>
                     <div class="form-group">
                         <label for="add-email2">E-mail dodatkowy</label>
-                        <input type="email" id="add-email2" placeholder="kopia@example.com">
+                        <select id="add-email2" class="filter-select w-full">
+                            ${buildEmailOptions(allowedUsers, profile?.defaultSecondaryEmail || '')}
+                        </select>
                     </div>
                 </div>
                 <div class="form-group">

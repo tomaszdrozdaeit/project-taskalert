@@ -54,15 +54,23 @@ export function buildMailPayload(reminder, options = {}) {
 
     const title = escapeHtml(reminder?.title || 'TaskAlert');
     const categoryName = escapeHtml(reminder?.categoryName || 'Brak');
-    const notes = reminder?.notes ? escapeHtml(reminder.notes) : '';
+    const notesRaw = reminder?.notes || reminder?.description || '';
+    const notes = notesRaw ? escapeHtml(notesRaw) : '';
     const typeLabel = reminder?.subTypeLabel ? escapeHtml(reminder.subTypeLabel) : '';
     const subject = options.subject || `⏰ TaskAlert: ${reminder?.title || 'Przypomnienie'} — termin: ${formattedDate}`;
     const textBody = [
         `${reminder?.title || 'TaskAlert'}`,
         `Termin: ${formattedDate}`,
         `Kategoria: ${reminder?.categoryName || 'Brak'}`,
-        reminder?.notes ? `Uwagi: ${reminder.notes}` : ''
+        typeLabel ? `Typ: ${reminder.subTypeLabel}` : '',
+        notesRaw ? `Notatki / Opis: ${notesRaw}` : ''
     ].filter(Boolean).join('\n');
+
+    const notesSection = notes ? `
+                    <div style="margin: 12px 0 0; padding: 12px 16px; background: #f0f4ff; border-left: 4px solid #4f8cff; border-radius: 0 6px 6px 0;">
+                        <p style="margin: 0 0 4px; font-size: 12px; font-weight: 700; color: #4f8cff; text-transform: uppercase; letter-spacing: 0.5px;">📝 Notatki / Opis</p>
+                        <p style="margin: 0; color: #1a1f2e; font-size: 14px; line-height: 1.5; white-space: pre-line;">${notes}</p>
+                    </div>` : '';
 
     const htmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -75,7 +83,7 @@ export function buildMailPayload(reminder, options = {}) {
                 <div style="background: #fff; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
                     <p style="margin: 0 0 8px; color: #1a1f2e;"><strong>📅 Data wygaśnięcia:</strong> ${formattedDate}</p>
                     ${typeLabel ? `<p style="margin: 0 0 8px; color: #64748b;"><strong>Typ:</strong> ${typeLabel}</p>` : ''}
-                    ${notes ? `<p style="margin: 12px 0 0; color: #64748b;">📝 ${notes}</p>` : ''}
+                    ${notesSection}
                 </div>
                 <p style="color: #94a3b8; font-size: 12px; margin: 16px 0 0;">Wysłano automatycznie przez system TaskAlert z adresu ${fromAddress}</p>
             </div>

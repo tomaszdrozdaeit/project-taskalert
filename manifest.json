@@ -9,6 +9,7 @@
     "theme_color": "#4f8cff",
     "background_color": "#0f1219",
     "lang": "pl-PL",
+    "gcm_sender_id": "103953800507",
     "icons": [
         {
             "src": "icons/icon-192.png",

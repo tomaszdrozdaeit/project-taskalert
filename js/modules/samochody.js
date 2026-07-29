@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onRemindersChange, deleteReminder, markAsExecuted, updateReminder, sendManualNotification } from '../db.js';
+import { onRemindersChange, deleteReminder, markAsExecuted, updateReminder, sendManualNotification, getAllowedUsers } from '../db.js';
 
 const CATEGORY_NAME = 'Samochody';
 const ICON = '🚗';
@@ -296,12 +296,34 @@ window.handleExecute = async (id) => {
     });
 };
 
+function buildEmailOpts(allowedUsers = [], currentEmail = '') {
+    const selected = (currentEmail || '').trim().toLowerCase();
+    let options = `<option value="">— Wybierz adres e-mail —</option>`;
+    let found = false;
+
+    (allowedUsers || []).forEach(u => {
+        const uEmail = (u.email || '').trim();
+        if (!uEmail) return;
+        const isSel = (uEmail.toLowerCase() === selected);
+        if (isSel) found = true;
+        const displayName = u.name ? `${u.name} (${uEmail})` : uEmail;
+        options += `<option value="${uEmail.replace(/"/g, '&quot;')}" ${isSel ? 'selected' : ''}>${displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</option>`;
+    });
+
+    if (selected && !found) {
+        options += `<option value="${currentEmail.replace(/"/g, '&quot;')}" selected>${currentEmail.replace(/</g, '&lt;').replace(/>/g, '&gt;')} (spoza bazy)</option>`;
+    }
+
+    return options;
+}
+
 window.handleEdit = async (id) => {
-    const { getCategories } = await import('../db.js');
     const reminder = allReminders.find(r => r.id === id);
     if (!reminder) return;
 
+    const { getCategories, getAllowedUsers } = await import('../db.js');
     const categories = await getCategories();
+    const allowedUsers = await getAllowedUsers();
     const expDate = reminder.expiryDate?.toDate ? reminder.expiryDate.toDate() : new Date(reminder.expiryDate);
     const expStr = expDate.toISOString().split('T')[0];
 
@@ -350,11 +372,15 @@ window.handleEdit = async (id) => {
             <div class="form-row">
                 <div class="form-group">
                     <label for="edit-email1">E-mail główny</label>
-                    <input type="email" id="edit-email1" value="${escHtml(reminder.primaryEmail)}">
+                    <select id="edit-email1" class="filter-select w-full">
+                        ${buildEmailOpts(allowedUsers, reminder.primaryEmail)}
+                    </select>
                 </div>
                 <div class="form-group">
                     <label for="edit-email2">E-mail dodatkowy</label>
-                    <input type="email" id="edit-email2" value="${escHtml(reminder.secondaryEmail)}">
+                    <select id="edit-email2" class="filter-select w-full">
+                        ${buildEmailOpts(allowedUsers, reminder.secondaryEmail)}
+                    </select>
                 </div>
             </div>
             <div class="form-group">

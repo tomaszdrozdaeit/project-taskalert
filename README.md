@@ -1,18 +1,19 @@
-# 🔔 TaskAlert — System Przypomnień i Alertów Terminowych
+# 🔔 TaskAlert — System Przypomnień i Alertów Terminowych (v4)
 
-**TaskAlert** to nowoczesna, progresywna aplikacja webowa (PWA) do zarządzania terminami i przypomnieniami w organizacji. System automatycznie monitoruje daty wygaśnięcia polis ubezpieczeniowych, przeglądów technicznych pojazdów, badań lekarskich pracowników, szkoleń BHP i dowolnych innych zdarzeń cyklicznych — wysyłając elastyczne powiadomienia e-mail z konfigurowalnym wyprzedzeniem czasowym.
+**TaskAlert** to nowoczesna, progresywna aplikacja webowa (PWA) do zarządzania terminami, przypomnieniami i alertami zespołowymi w organizacji. System automatycznie monitoruje daty wygaśnięcia polis ubezpieczeniowych, przeglądów technicznych pojazdów, badań lekarskich pracowników, szkoleń BHP oraz dowolnych innych zdarzeń cyklicznych — wysyłając powiadomienia e-mail oraz natywne powiadomienia **PUSH** na urządzenia mobilne i komputery.
 
-Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: prosty i intuicyjny interfejs, kolorowe statusy (🟢🟡🔴), wizualne odliczanie do terminów i inteligentne domyślne ustawienia.
+Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuicyjny interfejs, kolorowe statusy (🟢🟡🔴), wizualne odliczanie, ulepszony baner instalacji PWA, zaawansowane wyszukiwanie z list rozwijanych z bazy oraz kontrola dostępu oparta na liście autoryzowanych adresów e-mail (whitelist).
 
 ---
 
 ## 🛠️ Stos Technologiczny
 
-- **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
-- **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In).
-- **PWA (Offline Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej (Cache Storage) — `taskalert-v8`.
-- **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions (cron co 24h).
-- **Brak procesu budowania**: Projekt uruchamia się bezpośrednio z plików źródłowych (Firebase z CDN).
+- **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties i glassmorphism) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
+- **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In z automatyczną weryfikacją whitelisty `allowedUsers`).
+- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v9`, wykrywaniem platformy (Android/iOS) oraz dedykowanym banerem instalacyjnym.
+- **Powiadomienia PUSH**: Firebase Cloud Messaging (FCM) + Cloud Functions (Node.js 18, Cron o 9:00 czasu polskiego `Europe/Warsaw` z obsługą czasu letniego/zimowego DST, akcje drzemki 5/10 min).
+- **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions / Node.js dobowe weryfikacje.
+- **Testy**: Automatyczne testy reguł bezpieczeństwa Firestore (`tests/firestore-rules.test.js`) + audyt bezpieczeństwa.
 
 ---
 
@@ -20,33 +21,45 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 
 ```
 06_TaskAlert/
-├── index.html                 # App Shell + ekrany logowania/rejestracji
-├── manifest.json              # Manifest PWA (instalacja na telefonie/pulpicie)
-├── service-worker.js          # Mechanizm pamięci podręcznej i pracy offline (cache v8)
-├── firestore.rules            # Reguły zabezpieczeń Firestore
-├── plan_wdrozenia_taskalert_v3.pdf  # Oryginalny plan wdrożenia
+├── index.html                 # App Shell + ekrany logowania/rejestracji + nawigacja
+├── manifest.json              # Manifest PWA (gcm_sender_id dla FCM + instalacja)
+├── service-worker.js          # Pamięć podręczna (cache v9) + obsługa PUSH w tle i akcji drzemki
+├── firestore.rules            # Reguły zabezpieczeń Firestore (strict owner, allowedUsers, sharedAlerts)
+├── plan_wdrozenia_taskalert_v3.pdf  # Dokumentacja wdrożeniowa
 ├── icons/
 │   ├── icon-192.png           # Ikona PWA 192x192
 │   └── icon-512.png           # Ikona PWA 512x512
+├── functions/                 # Firebase Cloud Functions (v2)
+│   ├── package.json           # Zależności (firebase-admin, firebase-functions)
+│   └── index.js               # Scheduled Push Cron (9:00 Europe/Warsaw) + testowe push
+├── tests/                     # Testy automatyczne i audyt bezpieczeństwa
+│   ├── firestore-rules.test.js# Testy automatyczne reguł Firestore
+│   └── security-audit.md      # Raport audytu bezpieczeństwa systemu
 ├── scripts/
-│   ├── daily_check.js         # Dobowy skrypt sprawdzania alertów (GitHub Actions)
-│   ├── konfiguracja_email.md  # Przewodnik krok-po-kroku konfiguracji serwera home.pl i wysyłki e-mail
-│   └── uwagi.md               # Rejestr zgłoszeń i uwag użytkownika
+│   ├── daily_check.js         # Dobowy skrypt sprawdzania alertów e-mail (GitHub Actions)
+│   ├── konfiguracja_email.md  # Przewodnik konfiguracji SMTP
+│   ├── uwagi.md               # Rejestr zgłoszeń (wersja v1)
+│   └── uwagi_v2.md            # Rejestr zgłoszeń (wersja v2)
 ├── css/
-│   └── style.css              # Kompletny Design System (Light + Dark Mode)
+│   └── style.css              # Kompletny Design System (PWA banner, tab-bar, chipy, responsive)
 └── js/
     ├── firebase-config.js     # Konfiguracja połączenia z Firebase
-    ├── auth.js                # Autoryzacja Email/Password (rejestracja, login, reset)
-    ├── app.js                 # Router SPA, toasty, modale, helpery, FAB
-    ├── db.js                  # Warstwa dostępu do danych (Firestore CRUD — bezindeksowe filtrowanie/sortowanie, obsługa błędów real-time)
+    ├── auth.js                # Autoryzacja + weryfikacja whitelisty (allowedUsers, super-admin)
+    ├── app.js                 # Router SPA, toasty, modale, routing notificationclick, dropdowny e-mail
+    ├── db.js                  # Firestore CRUD (reminders, categories, allowedUsers, sharedAlerts)
+    ├── mail-utils.mjs         # Generator szablonów wiadomości e-mail (rozbudowane sekcje notatek)
     └── modules/               # Niezależne moduły SPA (ładowane dynamicznie)
-        ├── dashboard.js       # Pulpit z widgetami, timeline, chart SVG
-        ├── samochody.js       # Alerty: polisy OC/AC, przeglądy techniczne
-        ├── kadry.js           # Alerty: badania lekarskie, szkolenia BHP
-        ├── inne.js            # Alerty: elastyczny koszyk pozostałych terminów
-        ├── kategorie.js       # Zarządzanie kategoriami (CRUD globalny)
+        ├── dashboard.js       # Pulpit z widgetami, timeline, SVG Donut Chart
+        ├── samochody.js       # Alerty pojazdów (polisy OC/AC, przeglądy)
+        ├── kadry.js           # Alerty kadrowe (badania lekarskie, szkolenia BHP)
+        ├── inne.js            # Koszyk pozostałych terminów
+        ├── kategorie.js       # Zarządzanie kategoriami
         ├── historia.js        # Archiwum wykonanych alertów + eksport CSV
-        └── ustawienia.js      # Ustawienia konta, e-maile, motyw, eksport JSON
+        ├── ustawienia.js      # Ustawienia profilu, e-maile, PUSH (włącz/wyłącz/test), motyw, eksport JSON
+        ├── admin-users.js     # Panel zarządzania użytkownikami (whitelist, role, blokada)
+        ├── team-alerts.js     # Alerty zespołowe/współdzielone (role: owner, executor, observer)
+        ├── push-notifications.js # Moduł kliencki FCM (uprawnienia, tokeny, drzemki, wyciszanie)
+        └── pwa-install-banner.js # Detekcja Android/iOS + baner instalacji PWA
 ```
 
 ---
@@ -54,20 +67,19 @@ Aplikacja została zaprojektowana z myślą o użytkownikach nie-technicznych: p
 ## 🔄 Przepływ Alertów — Cykl Życia Przypomnienia
 
 ```mermaid
-graph LR
-    A[📝 Dodaj alert] --> B[⏰ Aktywne monitorowanie]
-    B --> C{Termin się zbliża?}
-    C -->|30 dni| D[📧 E-mail #1]
-    C -->|14 dni| E[📧 E-mail #2]
-    C -->|Custom| F[📧 E-mail custom]
-    D --> G[🔔 Dashboard: żółty/czerwony status]
-    E --> G
-    F --> G
-    G --> H[✅ Oznacz jako wykonane]
-    H --> I{Cykliczne?}
-    I -->|Tak| J[♻️ Nowy termin + reset flag]
-    I -->|Nie| K[📜 Archiwum]
-    J --> B
+graph TD
+    A[📝 Dodaj alert prywatny / zespołowy] --> B[⏰ Monitorowanie terminu]
+    B --> C{Sprawdzenie 9:00 Europe/Warsaw}
+    C -->|30 dni| D[📧 E-mail + 📲 Push]
+    C -->|14 dni| E[📧 E-mail + 📲 Push]
+    C -->|7 dni| F[📧 E-mail + 📲 Push]
+    C -->|3 dni| G[📧 E-mail + 📲 Push]
+    C -->|1 dzień| H[📧 E-mail + 📲 Push]
+    D & E & F & G & H --> I[🔔 Dashboard / App Shell]
+    I --> J{Akcja użytkownika}
+    J -->|Drzemka 5/10 min| K[⏰ Odroczenie powiadomienia]
+    J -->|✅ Oznacz wykonane| L[♻️ Nowy termin lub archiwum]
+    J -->|🔕 Wycisz alert| M[Zablokowanie push dla alertu]
 ```
 
 ---
@@ -75,111 +87,73 @@ graph LR
 ## 📑 Opis Modułów Aplikacji
 
 ### 1. Pulpit (Dashboard)
-- **4 karty statystyk** z animowanymi licznikami: aktywne alerty, w ciągu 30 dni, w ciągu 14 dni, przeterminowane.
-- **Timeline najbliższych terminów** z kolorowymi statusami (🟢 >30d, 🟡 14-30d, 🔴 <14d, pulsujący 🔴 = przeterminowane) i paskami postępu.
-- **Wykres kołowy SVG** — rozkład alertów po kategoriach.
-- **Badge w nawigacji** z liczbą pilnych alertów.
+- 4 karty statystyk z animowanymi licznikami: aktywne alerty, w ciągu 30 dni, w ciągu 14 dni, przeterminowane.
+- Timeline najbliższych terminów z statusami (🟢 >30d, 🟡 14-30d, 🔴 <14d, pulsujący 🔴 = przeterminowane) i paski postępu.
+- Wykres kołowy SVG z rozkładem po kategoriach.
 
-### 2. Samochody
-- Zarządzanie polisami ubezpieczeniowymi (OC/AC) i przeglądami technicznymi.
-- Wyszukiwanie, filtrowanie po statusie i typie, sortowanie po dacie.
-- Dialog wykonania z auto-kalkulacją następnego terminu.
-- Możliwość ręcznego wysłania powiadomienia e-mail.
+### 2. Samochody, Kadry & Inne
+- Dedykowane moduły dziedzinowe z filtrowaniem, wyszukiwaniem i automatycznym wyliczaniem kolejnych terminów.
+- Formularze zawierają adresy e-mail pobierane z bazy (`allowedUsers`) w formie wygodnych list rozwijanych.
 
-### 3. Kadry
-- Monitorowanie badań lekarskich i szkoleń BHP pracowników.
-- Identyczna funkcjonalność jak moduł Samochody, z podtypami kadrowymi.
+### 3. Alerty Zespołowe (`team-alerts.js`)
+- Współdzielenie zadań i terminów między wieloma użytkownikami.
+- Zakładki filtrowania: "Moje zlecone" (Właściciel), "Zlecone mi" (Wykonawca), "Obserwowane" (Obserwator).
+- Przypisywanie osób z bazy z przydzielaniem konkretnych ról.
 
-### 4. Inne
-- Elastyczny koszyk na pozostałe przypomnienia (certyfikaty, licencje, itp.).
-- Agreguje alerty ze wszystkich kategorii poza Samochody i Kadry.
+### 4. Użytkownicy (`admin-users.js`)
+- Panel zarządzania dostępem do aplikacji (dla administratorów).
+- Dodawanie nowych adresów e-mail, zmiana ról (`admin`, `user`), blokowanie/odblokowywanie kont.
+- Wbudowana ochrona super-administratora (`tomasz.drozda.eit@gmail.com`) przed usunięciem.
 
-### 5. Kategorie
-- Tworzenie nowych kategorii (globalnie widoczne dla wszystkich użytkowników).
-- Edycja nazwy, ikony (emoji), koloru i podtypów.
-- Przełącznik widoczności per użytkownik.
-- Kategorie domyślne (Samochody, Kadry, Inne) chronione przed usunięciem.
-
-### 6. Historia
-- Archiwum wykonanych/zamkniętych alertów z logiem zmian.
-- Wyszukiwanie i eksport do CSV (UTF-8 z BOM).
-
-### 7. Ustawienia
-- Profil użytkownika (nazwa, domyślne e-maile).
-- Konfiguracja domyślnych dni alertów (np. [30, 14] + możliwość dodania dowolnych).
-- Przełącznik motywu (jasny / ciemny).
-- Eksport wszystkich danych do JSON.
+### 5. Ustawienia & PWA / Push
+- Sekcja zarządzania powiadomieniami PUSH: sprawdzanie uprawnień, włączanie/wyłączanie, przycisk testowego wysłania powiadomienia.
+- Domyślne progi alertów (`30, 14, 7, 3, 1` dni).
+- Wykrywanie platform mobilnych z pomocniczym banerem instalacji PWA (dla iOS: instrukcja manualna Safari "Dodaj do ekranu głównego").
 
 ---
 
 ## 🗄️ Model Danych (Struktura Firestore)
 
-### Kolekcja globalna: `categories`
+### Kolekcja: `/allowedUsers/{email}` (Whitelist)
 ```json
 {
-  "name": "Samochody",
-  "icon": "🚗",
-  "color": "#4f8cff",
-  "isDefault": true,
-  "order": 1,
-  "subTypes": [
-    { "key": "polisa_oc", "label": "Polisa OC" },
-    { "key": "polisa_ac", "label": "Polisa AC" },
-    { "key": "przeglad", "label": "Przegląd techniczny" },
-    { "key": "custom", "label": "Inne" }
-  ],
-  "createdAt": "Timestamp",
-  "updatedAt": "Timestamp"
+  "email": "jan@firma.pl",
+  "name": "Jan Kowalski",
+  "role": "admin",
+  "isActive": true,
+  "createdAt": "Timestamp"
 }
 ```
 
-### Kolekcja: `/users/{uid}/profile/main`
+### Kolekcja: `/sharedAlerts/{alertId}` (Alerty Zespołowe)
 ```json
 {
-  "displayName": "Jan Kowalski",
-  "email": "jan@example.com",
-  "defaultPrimaryEmail": "jan@example.com",
-  "defaultSecondaryEmail": "",
-  "defaultAlertDays": [30, 14],
-  "createdAt": "Timestamp",
-  "lastLoginAt": "Timestamp"
-}
-```
-
-### Kolekcja: `/users/{uid}/reminders/{reminderId}`
-```json
-{
-  "title": "OC - Opel Astra GJ 12345",
-  "description": "Polisa PZU nr 123456789",
-  "categoryId": "ID_KATEGORII",
+  "title": "Przegląd wózka widłowego",
+  "description": "Przegląd UDT wózek 01",
+  "categoryId": "samochody",
   "categoryName": "Samochody",
-  "subType": "polisa_oc",
-  "subTypeLabel": "Polisa OC",
-  "primaryEmail": "jan@example.com",
-  "secondaryEmail": "sekretariat@firma.pl",
   "expiryDate": "Timestamp",
   "status": "active",
-  "alertDays": [30, 14],
-  "alertFlags": { "30": false, "14": false },
-  "lastExecutedAt": null,
+  "alertDays": [30, 14, 7, 3, 1],
   "recurrenceMonths": 12,
-  "notes": "Agent: Anna Nowak, tel. 600 700 800",
-  "history": [
-    { "type": "created",    "timestamp": "Timestamp", "note": "Utworzenie alertu w systemie", "expiryDate": "Timestamp" },
-    { "type": "edited",     "timestamp": "Timestamp", "note": "Zaktualizowano dane przypomnienia" },
-    { "type": "email_sent", "timestamp": "Timestamp", "recipients": ["jan@example.com"], "note": "Wysłano powiadomienie e-mail (jan@example.com)" },
-    { "type": "executed",   "timestamp": "Timestamp", "executedAt": "Timestamp", "newExpiry": "Timestamp|null", "note": "Oznaczono przypomnienie jako wykonane" }
+  "notes": "Firma serwisowa: ABC",
+  "createdBy": "uid_admina",
+  "createdByName": "Tomasz Drozda",
+  "participants": [
+    { "uid": "uid_jana", "email": "jan@firma.pl", "name": "Jan Kowalski", "role": "executor" },
+    { "uid": "uid_admina", "email": "tomasz.drozda.eit@gmail.com", "name": "Tomasz Drozda", "role": "owner" }
   ],
-  "createdAt": "Timestamp",
-  "updatedAt": "Timestamp"
+  "participantUids": ["uid_jana", "uid_admina"],
+  "history": [...]
 }
 ```
 
-### Kolekcja: `/users/{uid}/settings/categoryVisibility`
+### Kolekcja: `/users/{uid}/settings/pushConfig`
 ```json
 {
-  "CATEGORY_ID_1": true,
-  "CATEGORY_ID_2": false
+  "pushEnabled": true,
+  "fcmTokens": ["token_fcm_1", "token_fcm_2"],
+  "mutedAlerts": ["alert_id_1"]
 }
 ```
 
@@ -187,93 +161,41 @@ graph LR
 
 ## 🔒 Bezpieczeństwo i Uprawnienia
 
-Dostęp do bazy danych regulują reguły **Cloud Firestore Security Rules** (`firestore.rules`):
-- Dane użytkownika (`/users/{uid}/**`) — pełny dostęp tylko dla właściciela UID.
-- Kategorie (`/categories/**`) — odczyt i zapis dla każdego zalogowanego użytkownika (globalne).
-- Kolekcja mail (`/mail/**`) — tylko zapis (trigger dla Firebase Extension).
+Aplikacja stosuje rygorystyczne reguły bezpieczeństwa Firestore (`firestore.rules`):
+- **`/users/{userId}/**`**: Dostęp wyłącznie dla właściciela UID.
+- **`/allowedUsers/{email}`**: Odczyt dla zalogowanych, zapis wyłącznie dla ról `admin` oraz `super-admin`. Usuwanie konta super-admina jest uniemożliwione.
+- **`/sharedAlerts/{alertId}`**: Dostęp przyznawany na podstawie obecności w tablicy uczestników.
 
-*Uwaga dotycząca zapytań*: Pobieranie przypomnień realizowane jest przez subkolekcje użytkownika, a filtrowanie po statusie oraz sortowanie chronologiczne wykonywane jest bezpiecznie po stronie klienta (JavaScript) z pełną obsługą błędów `onSnapshot`. Dzięki temu baza danych nie wymaga zdefiniowanych złożonych indeksów (composite indexes) w konsoli Firebase, co gwarantuje natychmiastowe ładowanie danych i zapobiega zapętlaniu się spinnera ładowania.
-
-**Autoryzacja**: Email/Password (Firebase Authentication) — kompatybilna z urządzeniami Apple.
-
----
-
-## 💻 Uruchomienie Lokalne
-
-Projekt wymaga lokalnego serwera HTTP:
-
-### Sposób A (Python — zalecane)
+### Testy Automatyczne
+Uruchomienie pakietu testów reguł bezpieczeństwa:
 ```powershell
-cd c:\03_Antigravity\06_TaskAlert
-python -m http.server 3001
-```
-Aplikacja: **http://localhost:3001**
-
-### Sposób B (Node.js/npm)
-```powershell
-cd c:\03_Antigravity\06_TaskAlert
-npx serve -l 3001
+cd tests
+npm test
 ```
 
 ---
 
-## 🔥 Konfiguracja Firebase
+## ☁️ Wdrożenie Cloud Functions (PUSH Scheduler)
 
-### 1. Utwórz nowy projekt Firebase
-1. Otwórz [Firebase Console](https://console.firebase.google.com).
-2. Kliknij **Add project** → nazwa: `taskalert-app`.
-3. Przejdź do **Project Settings** → **Your apps** → **Add app** (Web).
-4. Skopiuj konfigurację (`apiKey`, `authDomain`, itp.) do pliku `js/firebase-config.js`.
-
-### 2. Włącz Authentication
-1. Firebase Console → **Authentication** → **Sign-in method**.
-2. Włącz **Email/Password**.
-3. W zakładce **Settings** → **Authorized domains** dodaj:
-   - `localhost`
-   - `tomaszdrozdaeit.github.io`
-
-### 3. Utwórz bazę Firestore
-1. Firebase Console → **Firestore Database** → **Create database**.
-2. Wybierz region (np. `europe-west1`).
-3. Wgraj reguły z pliku `firestore.rules`.
-
-### 4. (Opcjonalnie) Firebase Extension — Trigger Email
-1. Firebase Console → **Extensions** → zainstaluj **Trigger Email from Firestore**.
-2. Skonfiguruj SMTP (np. SendGrid, Mailgun).
-3. Ustaw kolekcję monitorowaną na `mail`.
+Powiadomienia push są automatycznie harmonogramowane przez Firebase Cloud Functions v2:
+1. Zapewnij plan Blaze w Firebase.
+2. Wdrożenie funkcji z katalogu `functions/`:
+```powershell
+cd functions
+firebase deploy --only functions
+```
+Funkcja `scheduledAlertCheck` wykonuje się codziennie o **9:00 czasu polskiego** (`Europe/Warsaw`), automatycznie obsługując zmiany na czas letni/zimowy.
 
 ---
 
-## 🌐 Hosting na GitHub Pages
+## 🌐 Hosting i Aktualizacja (GitHub Pages)
 
-Aplikacja jest hostowana pod adresem: `tomaszdrozdaeit.github.io/project-taskalert`
+Adres produkcyjny: `tomaszdrozdaeit.github.io/project-taskalert`
 
-### Procedura Aktualizacji (Deployment)
+### Aktualizacja
 ```powershell
 git add .
-git commit -m "Opis zmian"
+git commit -m "Wdrożenie wersji v4 — PUSH, PWA banner, Whitelist, SharedAlerts"
 git push origin main
 ```
-GitHub Pages automatycznie zaktualizuje aplikację w ciągu 1-2 minut.
-
----
-
-## 🔄 Aktualizacja PWA w przeglądarkach
-
-1. Otwórz plik `service-worker.js`.
-2. Zwiększ wersję w `CACHE_NAME` (np. `taskalert-v1` → `taskalert-v2`).
-3. Zaktualizuj listę `ASSETS_TO_CACHE` jeśli doszły nowe pliki.
-4. Zrób commit i push.
-5. Użytkownicy: Ctrl+Shift+R (hard refresh) jeśli zmiany nie widoczne od razu.
-
----
-
-## 📧 System Powiadomień E-mail
-
-### Automatyczne (Opcja A)
-- **GitHub Actions cron** uruchamiany codziennie o 7:00 sprawdza daty wygaśnięcia.
-- Wstawia dokumenty do kolekcji `mail/` w Firestore.
-- **Firebase Extension** "Trigger Email" wysyła e-maile przez SMTP.
-
-### Ręczne
-- Przycisk ✉️ przy każdym przypomnieniu umożliwia natychmiastowe wysłanie powiadomienia do osób przypisanych.
+Service worker korzysta z pamięci podręcznej **`taskalert-v9`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.

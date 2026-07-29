@@ -205,7 +205,7 @@ export async function addReminder(data) {
     const remindersRef = userCol('reminders');
     if (!remindersRef) throw new Error('Użytkownik nie jest zalogowany.');
 
-    const alertDays = data.alertDays || [30, 14];
+    const alertDays = data.alertDays || [30, 14, 7, 3, 1];
     const expiryTimestamp = toFirestoreTimestamp(data.expiryDate);
 
     const initialHistory = [{
@@ -466,4 +466,249 @@ export async function sendManualNotification(reminder) {
     }
 
     return { id: docRef.id, recipients };
+}
+
+// ============================================================
+// ALLOWED USERS (Whitelist)
+// ============================================================
+
+// Pobierz wszystkich dozwolonych użytkowników
+export async function getAllowedUsers() {
+    const allowedRef = collection(db, 'allowedUsers');
+    const snap = await getDocs(allowedRef);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+}
+
+// Pobierz jednego dozwolonego użytkownika po email
+export async function getAllowedUser(email) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
+    const snap = await getDoc(allowedRef);
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Dodaj użytkownika do whitelist
+export async function addAllowedUser(data) {
+    const normalizedEmail = data.email.trim().toLowerCase();
+    const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
+
+    // Sprawdź czy już istnieje
+    const existing = await getDoc(allowedRef);
+    if (existing.exists()) {
+        throw new Error(`Użytkownik ${normalizedEmail} już istnieje na liście.`);
+    }
+
+    await setDoc(allowedRef, {
+        email: normalizedEmail,
+        name: data.name || normalizedEmail.split('@')[0],
+        role: data.role || 'user',
+        isActive: data.isActive !== false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    });
+    return normalizedEmail;
+}
+
+// Aktualizuj użytkownika na whitelist
+export async function updateAllowedUser(email, data) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
+
+    await updateDoc(allowedRef, {
+        ...data,
+        updatedAt: serverTimestamp()
+    });
+}
+
+// Usuń użytkownika z whitelist
+export async function deleteAllowedUser(email) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Ochrona super-admina
+    const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
+    const snap = await getDoc(allowedRef);
+    if (snap.exists() && snap.data().role === 'super-admin') {
+        throw new Error('Nie można usunąć konta super-administratora.');
+    }
+
+    await deleteDoc(allowedRef);
+}
+
+// Nasłuchuj zmian w allowedUsers (real-time)
+export function onAllowedUsersChange(callback) {
+    const allowedRef = collection(db, 'allowedUsers');
+    return onSnapshot(allowedRef, (snap) => {
+        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        callback(users);
+    }, (err) => {
+        console.error('[DB] Błąd nasłuchiwania allowedUsers:', err);
+        callback([]);
+    });
+}
+
+// ============================================================
+// SHARED ALERTS (Alerty współdzielone)
+// ============================================================
+
+const SHARED_ALERTS_COL = 'sharedAlerts';
+
+// Dodaj alert współdzielony
+export async function addSharedAlert(data) {
+    const alertsRef = collection(db, SHARED_ALERTS_COL);
+    const alertDays = data.alertDays || [30, 14, 7, 3, 1];
+    const expiryTimestamp = toFirestoreTimestamp(data.expiryDate);
+
+    const initialHistory = [{
+        type: 'created',
+        timestamp: Timestamp.now(),
+        note: 'Utworzenie alertu zespołowego',
+        expiryDate: expiryTimestamp,
+        byUid: uid(),
+        byName: data.createdByName || ''
+    }];
+
+    const alertData = {
+        title: data.title || '',
+        description: data.description || '',
+        categoryId: data.categoryId || '',
+        categoryName: data.categoryName || '',
+        subType: data.subType || 'custom',
+        subTypeLabel: data.subTypeLabel || 'Niestandardowy',
+        expiryDate: expiryTimestamp,
+        status: 'active',
+        alertDays: alertDays,
+        alertFlags: buildAlertFlags(alertDays),
+        recurrenceMonths: data.recurrenceMonths || 0,
+        notes: data.notes || '',
+        createdBy: uid(),
+        createdByName: data.createdByName || '',
+        participants: data.participants || [],
+        participantUids: (data.participants || []).map(p => p.uid),
+        history: initialHistory,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+
+    const docRef = await addDoc(alertsRef, alertData);
+    return docRef.id;
+}
+
+// Pobierz alerty współdzielone dla bieżącego użytkownika
+export async function getSharedAlerts(filterRole = null) {
+    const alertsRef = collection(db, SHARED_ALERTS_COL);
+    const snap = await getDocs(alertsRef);
+    const currentUid = uid();
+
+    let alerts = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(a => {
+            const uids = a.participantUids || (a.participants || []).map(p => p.uid);
+            return uids.includes(currentUid) && a.status === 'active';
+        });
+
+    if (filterRole) {
+        alerts = alerts.filter(a => {
+            const participant = (a.participants || []).find(p => p.uid === currentUid);
+            return participant && participant.role === filterRole;
+        });
+    }
+
+    return alerts.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
+}
+
+// Pobierz jeden alert współdzielony
+export async function getSharedAlert(id) {
+    const alertRef = doc(db, SHARED_ALERTS_COL, id);
+    const snap = await getDoc(alertRef);
+    return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Aktualizuj alert współdzielony
+export async function updateSharedAlert(id, data) {
+    const alertRef = doc(db, SHARED_ALERTS_COL, id);
+
+    if (data.alertDays) {
+        data.alertFlags = buildAlertFlags(data.alertDays);
+    }
+    if (data.expiryDate !== undefined) {
+        data.expiryDate = toFirestoreTimestamp(data.expiryDate);
+    }
+    if (data.participants) {
+        data.participantUids = data.participants.map(p => p.uid);
+    }
+
+    // Dodaj wpis historii
+    try {
+        const snap = await getDoc(alertRef);
+        if (snap.exists()) {
+            const currentData = snap.data();
+            const history = [...(currentData.history || [])];
+            history.push({
+                type: 'edited',
+                timestamp: Timestamp.now(),
+                note: 'Zaktualizowano dane alertu zespołowego',
+                byUid: uid()
+            });
+            data.history = history;
+        }
+    } catch (err) {
+        console.warn('[DB] Błąd odczytu historii sharedAlert:', err);
+    }
+
+    await updateDoc(alertRef, {
+        ...data,
+        updatedAt: serverTimestamp()
+    });
+}
+
+// Usuń alert współdzielony
+export async function deleteSharedAlert(id) {
+    const alertRef = doc(db, SHARED_ALERTS_COL, id);
+    await deleteDoc(alertRef);
+}
+
+// Dodaj uczestnika do alertu współdzielonego
+export async function addParticipantToSharedAlert(alertId, participant) {
+    const alert = await getSharedAlert(alertId);
+    if (!alert) throw new Error('Alert nie istnieje.');
+
+    const participants = [...(alert.participants || [])];
+    if (participants.some(p => p.uid === participant.uid)) {
+        throw new Error('Użytkownik jest już dodany do tego alertu.');
+    }
+
+    participants.push(participant);
+    await updateSharedAlert(alertId, { participants });
+}
+
+// Usuń uczestnika z alertu współdzielonego
+export async function removeParticipantFromSharedAlert(alertId, participantUid) {
+    const alert = await getSharedAlert(alertId);
+    if (!alert) throw new Error('Alert nie istnieje.');
+
+    const participants = (alert.participants || []).filter(p => p.uid !== participantUid);
+    await updateSharedAlert(alertId, { participants });
+}
+
+// Nasłuchuj zmian w alertach współdzielonych (real-time)
+export function onSharedAlertsChange(callback) {
+    const alertsRef = collection(db, SHARED_ALERTS_COL);
+    const currentUid = uid();
+
+    return onSnapshot(alertsRef, (snap) => {
+        const alerts = snap.docs
+            .map(d => ({ id: d.id, ...d.data() }))
+            .filter(a => {
+                const uids = a.participantUids || (a.participants || []).map(p => p.uid);
+                return uids.includes(currentUid);
+            });
+
+        alerts.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));
+        callback(alerts);
+    }, (err) => {
+        console.error('[DB] Błąd nasłuchiwania sharedAlerts:', err);
+        callback([]);
+    });
 }

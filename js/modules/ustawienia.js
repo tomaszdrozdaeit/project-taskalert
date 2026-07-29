@@ -31,7 +31,7 @@ function renderSettings(profile) {
     const container = document.getElementById('settings-content');
     if (!container) return;
 
-    const defaultAlertDays = profile?.defaultAlertDays || [30, 14];
+    const defaultAlertDays = profile?.defaultAlertDays || [30, 14, 7, 3, 1];
     const alertChipsHtml = defaultAlertDays.map(d =>
         `<span class="alert-chip" data-days="${d}">${d} dni <button class="chip-remove" type="button">×</button></span>`
     ).join('');
@@ -78,6 +78,29 @@ function renderSettings(profile) {
                     ${alertChipsHtml}
                     <button class="alert-chip-add" type="button" id="set-add-alert-btn">+ Dodaj alert</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Powiadomienia PUSH -->
+        <div class="card animate-in" style="margin-bottom:20px;">
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">📲 Powiadomienia PUSH</h3>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;">Otrzymuj powiadomienia push bezpośrednio na urządzeniu, nawet gdy aplikacja jest zamknięta.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin-bottom:16px;">
+                <div id="push-status" style="display:flex;align-items:center;gap:8px;">
+                    <span id="push-status-dot" style="width:10px;height:10px;border-radius:50%;background:#94a3b8;"></span>
+                    <span id="push-status-text" style="font-size:0.88rem;color:var(--text-secondary);">Sprawdzanie...</span>
+                </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+                <button class="btn btn-primary" id="push-enable-btn" style="display:none;">
+                    🔔 Włącz powiadomienia
+                </button>
+                <button class="btn btn-secondary" id="push-disable-btn" style="display:none;">
+                    🔕 Wyłącz powiadomienia
+                </button>
+                <button class="btn btn-secondary" id="push-test-btn" style="display:none;">
+                    📤 Testuj powiadomienie
+                </button>
             </div>
         </div>
 
@@ -204,4 +227,100 @@ function renderSettings(profile) {
             btn.classList.remove('loading');
         }
     });
+
+    // Push notifications UI
+    initPushUI();
+}
+
+async function initPushUI() {
+    const enableBtn = document.getElementById('push-enable-btn');
+    const disableBtn = document.getElementById('push-disable-btn');
+    const testBtn = document.getElementById('push-test-btn');
+    const statusDot = document.getElementById('push-status-dot');
+    const statusText = document.getElementById('push-status-text');
+
+    if (!enableBtn || !statusDot) return;
+
+    try {
+        const {
+            getPermissionStatus, requestPushPermission, disablePushNotifications,
+            isPushEnabled, sendTestPushNotification, setupForegroundHandler
+        } = await import('./push-notifications.js');
+
+        const permStatus = getPermissionStatus();
+        const pushEnabled = await isPushEnabled();
+
+        if (permStatus === 'unsupported') {
+            statusDot.style.background = '#94a3b8';
+            statusText.textContent = 'Powiadomienia push nie są wspierane w tej przeglądarce.';
+            return;
+        }
+
+        const updateUI = async () => {
+            const perm = getPermissionStatus();
+            const enabled = await isPushEnabled();
+
+            if (perm === 'denied') {
+                statusDot.style.background = '#ef4444';
+                statusText.textContent = 'Powiadomienia zablokowane w przeglądarce. Zmień to w ustawieniach przeglądarki.';
+                enableBtn.style.display = 'none';
+                disableBtn.style.display = 'none';
+                testBtn.style.display = 'none';
+            } else if (perm === 'granted' && enabled) {
+                statusDot.style.background = '#10b981';
+                statusText.textContent = 'Powiadomienia push są włączone ✅';
+                enableBtn.style.display = 'none';
+                disableBtn.style.display = '';
+                testBtn.style.display = '';
+            } else {
+                statusDot.style.background = '#f59e0b';
+                statusText.textContent = 'Powiadomienia push wyłączone';
+                enableBtn.style.display = '';
+                disableBtn.style.display = 'none';
+                testBtn.style.display = 'none';
+            }
+        };
+
+        await updateUI();
+
+        enableBtn.addEventListener('click', async () => {
+            enableBtn.classList.add('loading');
+            try {
+                await requestPushPermission();
+                await setupForegroundHandler();
+                window.TaskAlert.showToast('Powiadomienia push włączone!', 'success');
+                await updateUI();
+            } catch (err) {
+                window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
+            } finally {
+                enableBtn.classList.remove('loading');
+            }
+        });
+
+        disableBtn.addEventListener('click', async () => {
+            disableBtn.classList.add('loading');
+            try {
+                await disablePushNotifications();
+                window.TaskAlert.showToast('Powiadomienia push wyłączone.', 'info');
+                await updateUI();
+            } catch (err) {
+                window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
+            } finally {
+                disableBtn.classList.remove('loading');
+            }
+        });
+
+        testBtn.addEventListener('click', async () => {
+            try {
+                await sendTestPushNotification();
+                window.TaskAlert.showToast('Testowe powiadomienie wysłane!', 'success');
+            } catch (err) {
+                window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
+            }
+        });
+    } catch (err) {
+        console.warn('[Settings] Błąd inicjalizacji push UI:', err);
+        statusDot.style.background = '#94a3b8';
+        statusText.textContent = 'Błąd inicjalizacji powiadomień push.';
+    }
 }
