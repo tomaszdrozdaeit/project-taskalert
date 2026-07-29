@@ -35,7 +35,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    *Plik `server.py` uruchamia wielowątkowy serwer na porcie 3001 z nagłówkami wykluczającymi pamięć podręczną (`no-store, no-cache`).*
 
 4. **Otwórz aplikację w przeglądarce:**
-   👉 **http://127.0.0.1:3001** (lub http://localhost:3001)
+   👉 **http://localhost:3001** *(Użyj `localhost` zamiast `127.0.0.1`, aby powiązanie z Google Sign-In w Firebase działało bez błędu `auth/unauthorized-domain`)*
 
 ---
 
