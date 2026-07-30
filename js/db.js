@@ -458,8 +458,14 @@ export function onRemindersChange(callback, statusFilter = 'active') {
 
     const notify = () => {
         let combined = [...privateReminders, ...sharedReminders];
-        if (statusFilter !== 'all') {
-            combined = combined.filter(r => r.status === statusFilter);
+        if (statusFilter === 'completed') {
+            combined = combined.filter(r =>
+                r.status === 'completed' ||
+                r.lastExecutedAt ||
+                (r.history && r.history.some(h => h.type === 'executed'))
+            );
+        } else if (statusFilter !== 'all') {
+            combined = combined.filter(r => r.status === statusFilter || (statusFilter === 'active' && r.status !== 'completed'));
         }
         combined.sort((a, b) => {
             if (statusFilter === 'completed') {
@@ -742,6 +748,9 @@ export async function addSharedAlert(data) {
         byName: String(data.createdByName || auth.currentUser?.displayName || auth.currentUser?.email || '').trim()
     }];
 
+    const executorEmail = cleanParticipants.find(p => p.role === 'executor')?.email || cleanParticipants[0]?.email || '';
+    const ownerEmail = cleanParticipants.find(p => p.role === 'owner')?.email || cleanParticipants[1]?.email || '';
+
     const alertData = {
         title: String(data.title || '').trim(),
         description: String(data.description || data.notes || '').trim(),
@@ -749,6 +758,8 @@ export async function addSharedAlert(data) {
         categoryName: String(data.categoryName || '').trim(),
         subType: String(data.subType || 'custom').trim(),
         subTypeLabel: String(data.subTypeLabel || 'Niestandardowy').trim(),
+        primaryEmail: String(data.primaryEmail || executorEmail).trim(),
+        secondaryEmail: String(data.secondaryEmail || ownerEmail).trim(),
         expiryDate: expiryTimestamp,
         status: 'active',
         alertDays: alertDays,

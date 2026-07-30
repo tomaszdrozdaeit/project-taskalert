@@ -698,6 +698,11 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             </div>
         </div>` : '';
 
+    const participantPrimary = (reminder.participants && reminder.participants.length > 0) ? reminder.participants[0].email : '';
+    const participantSecondary = (reminder.participants && reminder.participants.length > 1) ? reminder.participants[1].email : '';
+    const initialPrimary = reminder.primaryEmail || participantPrimary;
+    const initialSecondary = reminder.secondaryEmail || participantSecondary;
+
     showModal({
         title: `📌 Szczegóły: ${reminder.title}`,
         wide: true,
@@ -753,13 +758,13 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 <div class="form-group">
                     <label for="edit-email1">E-mail główny</label>
                     <select id="edit-email1" class="filter-select w-full">
-                        ${buildEmailOptions(allowedUsers, reminder.primaryEmail)}
+                        ${buildEmailOptions(allowedUsers, initialPrimary)}
                     </select>
                 </div>
                 <div class="form-group">
                     <label for="edit-email2">E-mail dodatkowy</label>
                     <select id="edit-email2" class="filter-select w-full">
-                        ${buildEmailOptions(allowedUsers, reminder.secondaryEmail)}
+                        ${buildEmailOptions(allowedUsers, initialSecondary)}
                     </select>
                 </div>
             </div>
@@ -817,11 +822,24 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             footer.querySelector('#modal-close-btn').addEventListener('click', closeModal);
 
             footer.querySelector('#modal-mail-btn').addEventListener('click', async () => {
+                const currentPrimary = body.querySelector('#edit-email1')?.value?.trim();
+                const currentSecondary = body.querySelector('#edit-email2')?.value?.trim();
+
+                const mailReminder = {
+                    ...reminder,
+                    primaryEmail: currentPrimary || initialPrimary,
+                    secondaryEmail: currentSecondary || initialSecondary
+                };
+
+                const mailBtn = footer.querySelector('#modal-mail-btn');
+                mailBtn.classList.add('loading');
                 try {
-                    const result = await sendManualNotification(reminder);
-                    showToast(`Wysłano żądanie e-mail do rozszerzenia Trigger Email. ID dokumentu: ${result.id}. Sprawdź kolejkę Firestore i logi rozszerzenia.`, 'success');
+                    const result = await sendManualNotification(mailReminder);
+                    showToast(`Wysłano powiadomienie e-mail do: ${result.recipients.join(', ')}.`, 'success');
                 } catch (err) {
                     showToast('Błąd wysyłania e-maila: ' + err.message, 'error');
+                } finally {
+                    mailBtn.classList.remove('loading');
                 }
             });
 
@@ -1187,6 +1205,12 @@ async function showAddReminderModal(prefillCategory) {
                     name: name,
                     role: roleSelect.value
                 });
+
+                const email1Select = body.querySelector('#add-email1');
+                if (email1Select && (!email1Select.value || email1Select.value === defaultEmail)) {
+                    email1Select.value = email;
+                }
+
                 userSelect.value = '';
                 renderParticipants();
             });

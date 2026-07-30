@@ -79,12 +79,13 @@ function renderList() {
     }
 
     listEl.innerHTML = filtered.map(r => {
-        const historyEntries = (r.history || []).slice(-3).reverse();
-        const historyHtml = historyEntries.map(h => `
+        const executedEntries = (r.history || []).filter(h => h.type === 'executed' || h.executedAt).reverse();
+        const displayEntries = executedEntries.length > 0 ? executedEntries : (r.history || []).slice(-3).reverse();
+        const historyHtml = displayEntries.map(h => `
             <div style="font-size:0.78rem;color:var(--text-muted);padding:4px 0;border-top:1px solid var(--border-light);">
-                ✅ Wykonano: ${formatDate(h.executedAt)}
-                ${h.newExpiry ? ` → Następny: ${formatDate(h.newExpiry)}` : ' (zamknięte)'}
-                ${h.note ? ` — ${escHtml(h.note)}` : ''}
+                ${h.type === 'executed' || h.executedAt ? '✅ Wykonano: ' + formatDate(h.executedAt || h.timestamp) : '📌 ' + escHtml(h.note || 'Zdarzenie')}
+                ${h.newExpiry ? ` → Następny termin: ${formatDate(h.newExpiry)}` : (h.type === 'executed' ? ' (zamknięte)' : '')}
+                ${h.note && h.type === 'executed' ? ` — ${escHtml(h.note)}` : ''}
             </div>
         `).join('');
 

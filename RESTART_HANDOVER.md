@@ -7,9 +7,9 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
 ## 📌 1. Stan Gałęzi Git (Branching Strategy)
 
 - **`main` (Produkcja):** 
-  - Gałąź została w pełni zaktualizowana i scalona z `v4-dev` (`commit 51e7e32`). Wszystkie poprawki oraz zaktualizowane `firestore.rules` są zsynchronizowane z repozytorium zdalnym i Firebase Cloud.
-- **`v4.1-dev` (Środowisko Deweloperskie / Nowa Gałąź):**
-  - Nowa aktywna gałąź deweloperska utowrzona z `main` do dalszych prac i testów.
+  - Gałąź zaktualizowana i scalona ze wszystkimi poprawkami (auto-fill e-mail w alertach zespołowych, natychmiastowa wysyłka maila w modalu, widok Historia, zaktualizowane reguły `firestore.rules`).
+- **`v4.1-dev` (Środowisko Deweloperskie):**
+  - Aktywna gałąź zaktualizowana i gotowa do pracy.
 
 ---
 
@@ -22,7 +22,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
 2. **Upewnij się, że jesteś na gałęzi `v4.1-dev`:**
    ```bash
    git branch
-   # Wynik powinien wskazywać: * v4-dev
+   # Wynik powinien wskazywać: * v4.1-dev
    ```
    *Jeśli jesteś na `main`, przełącz się:* `git checkout v4-dev`
 

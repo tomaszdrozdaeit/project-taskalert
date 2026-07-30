@@ -385,6 +385,9 @@ async function showAddTeamAlertModal() {
                 const btn = footer.querySelector('#modal-save-btn');
                 btn.classList.add('loading');
 
+                const executorObj = selectedParticipants.find(p => p.role === 'executor') || selectedParticipants[0];
+                const ownerObj = selectedParticipants.find(p => p.role === 'owner') || selectedParticipants[1];
+
                 try {
                     await addSharedAlert({
                         title,
@@ -394,6 +397,8 @@ async function showAddTeamAlertModal() {
                         recurrenceMonths: recurrence,
                         notes,
                         description: notes,
+                        primaryEmail: executorObj?.email || '',
+                        secondaryEmail: ownerObj?.email || '',
                         createdByName: currentName,
                         participants: selectedParticipants
                     });

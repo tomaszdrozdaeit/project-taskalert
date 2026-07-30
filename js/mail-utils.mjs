@@ -29,10 +29,12 @@ function escapeHtml(value) {
 }
 
 export function buildMailPayload(reminder, options = {}) {
+    const participantEmails = (reminder?.participants || []).map(p => p?.email);
     const recipients = normalizeRecipients([
         ...(options.recipients || []),
         reminder?.primaryEmail,
-        reminder?.secondaryEmail
+        reminder?.secondaryEmail,
+        ...participantEmails
     ]);
 
     if (recipients.length === 0) {
