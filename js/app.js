@@ -1297,6 +1297,37 @@ function updateSubtypeOptions(selectEl, category) {
 
 
 // ============================================================
+// GLOBAL TASKALERT EXPORTS (Attached directly to window)
+// ============================================================
+export { showAddReminderModal, showReminderDetailsModal, showExecuteModal, showModal, closeModal, showConfirm, showToast };
+
+window.showAddReminderModal = showAddReminderModal;
+window.showReminderDetailsModal = showReminderDetailsModal;
+window.showExecuteModal = showExecuteModal;
+window.showModal = showModal;
+window.closeModal = closeModal;
+window.showConfirm = showConfirm;
+window.showToast = showToast;
+
+window.TaskAlert = {
+    showToast,
+    showModal,
+    closeModal,
+    showConfirm,
+    showAddReminderModal,
+    showReminderDetailsModal,
+    showExecuteModal,
+    escHtml,
+    navigateTo,
+    formatDate,
+    formatDateTime,
+    daysUntil,
+    getAlertStatus,
+    getCountdownText,
+    debounce
+};
+
+// ============================================================
 // HELPERS
 // ============================================================
 export function daysUntil(date) {

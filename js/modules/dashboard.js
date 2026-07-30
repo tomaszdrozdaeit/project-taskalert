@@ -104,7 +104,7 @@ export function init() {
         timeline.addEventListener('click', (e) => {
             const card = e.target.closest('.reminder-card');
             if (card && card.dataset.id) {
-                (window.showReminderDetailsModal || window.TaskAlert?.showReminderDetailsModal)?.(card.dataset.id);
+                window.showReminderDetailsModal(card.dataset.id);
             }
         });
     }
