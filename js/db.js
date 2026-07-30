@@ -662,10 +662,13 @@ export async function addAllowedUser(data) {
     const normalizedEmail = data.email.trim().toLowerCase();
     const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
 
-    // Sprawdź czy już istnieje
-    const existing = await getDoc(allowedRef);
-    if (existing.exists()) {
-        throw new Error(`Użytkownik ${normalizedEmail} już istnieje na liście.`);
+    try {
+        const existing = await getDoc(allowedRef);
+        if (existing.exists()) {
+            throw new Error(`Użytkownik ${normalizedEmail} już istnieje na liście.`);
+        }
+    } catch (err) {
+        if (err.message && err.message.includes('już istnieje')) throw err;
     }
 
     await setDoc(allowedRef, {
@@ -675,7 +678,7 @@ export async function addAllowedUser(data) {
         isActive: data.isActive !== false,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-    });
+    }, { merge: true });
     return normalizedEmail;
 }
 
@@ -684,10 +687,10 @@ export async function updateAllowedUser(email, data) {
     const normalizedEmail = email.trim().toLowerCase();
     const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
 
-    await updateDoc(allowedRef, {
+    await setDoc(allowedRef, {
         ...data,
         updatedAt: serverTimestamp()
-    });
+    }, { merge: true });
 }
 
 // Usuń użytkownika z whitelist

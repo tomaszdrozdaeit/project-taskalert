@@ -8,23 +8,23 @@ service cloud.firestore {
     }
 
     // ── Kategorie (globalne) ────────────────────────
-    match /categories/{categoryId} {
+    match /categories/{document=**} {
       allow read, write: if request.auth != null;
     }
 
     // ── Mail (Firebase Extension Trigger Email) ─────
-    match /mail/{mailId} {
+    match /mail/{document=**} {
       allow create: if request.auth != null;
       allow read, update, delete: if false;
     }
 
     // ── Allowed Users (Whitelist) ───────────────────
-    match /allowedUsers/{docId} {
+    match /allowedUsers/{document=**} {
       allow read, write: if request.auth != null;
     }
 
     // ── Shared Alerts (Alerty współdzielone) ────────
-    match /sharedAlerts/{alertId} {
+    match /sharedAlerts/{document=**} {
       allow read, write: if request.auth != null;
     }
   }
