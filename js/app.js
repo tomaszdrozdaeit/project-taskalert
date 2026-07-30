@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole, ensureUserProfile } from './auth.js';
+import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole, ensureUserProfile, SUPER_ADMIN_EMAIL } from './auth.js';
 import { initDefaultCategories, getCategories, getAllowedUsers } from './db.js';
 
 // ============================================================

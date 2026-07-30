@@ -18,7 +18,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-const CACHE_NAME = 'taskalert-v20';
+const CACHE_NAME = 'taskalert-v21';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
