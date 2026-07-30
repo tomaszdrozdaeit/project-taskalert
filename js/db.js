@@ -704,19 +704,6 @@ export async function deleteAllowedUser(email) {
     await deleteDoc(allowedRef);
 }
 
-// Nasłuchuj zmian w allowedUsers (real-time)
-export function onAllowedUsersChange(callback) {
-    const allowedRef = collection(db, 'allowedUsers');
-    return onSnapshot(allowedRef, (snap) => {
-        const users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        callback(users);
-    }, (err) => {
-        console.error('[DB] Błąd nasłuchiwania allowedUsers:', err);
-        callback([]);
-    });
-}
-
 // ============================================================
 // SHARED ALERTS (Alerty współdzielone)
 // ============================================================
