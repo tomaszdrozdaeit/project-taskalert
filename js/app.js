@@ -1299,8 +1299,6 @@ function updateSubtypeOptions(selectEl, category) {
 // ============================================================
 // GLOBAL TASKALERT EXPORTS (Attached directly to window)
 // ============================================================
-export { showAddReminderModal, showReminderDetailsModal, showExecuteModal, showModal, closeModal, showConfirm, showToast };
-
 window.showAddReminderModal = showAddReminderModal;
 window.showReminderDetailsModal = showReminderDetailsModal;
 window.showExecuteModal = showExecuteModal;
