@@ -1358,6 +1358,14 @@ export function getCountdownText(daysLeft) {
     return `za ${daysLeft} dni`;
 }
 
+export function debounce(fn, ms = 300) {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), ms);
+    };
+}
+
 export function escHtml(str) {
     if (!str) return '';
     const div = document.createElement('div');
