@@ -107,7 +107,7 @@ function renderList() {
 
 function exportCSV() {
     if (allCompleted.length === 0) {
-        window.TaskAlert.showToast('Brak danych do eksportu.', 'warning');
+        (window.showToast || window.TaskAlert?.showToast)?.('Brak danych do eksportu.', 'warning');
         return;
     }
 
@@ -129,5 +129,5 @@ function exportCSV() {
     a.download = `taskalert_historia_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    window.TaskAlert.showToast('Eksport CSV pobrany.', 'success');
+    (window.showToast || window.TaskAlert?.showToast)?.('Eksport CSV pobrany.', 'success');
 }
