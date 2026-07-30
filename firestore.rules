@@ -26,15 +26,18 @@ service cloud.firestore {
 
     // ── Allowed Users (Whitelist) ───────────────────
     // Odczyt: każdy zalogowany użytkownik
-    // Tworzenie/Aktualizacja/Usuwanie: tylko użytkownicy z rolą admin/super-admin
+    // Tworzenie/Aktualizacja: zalogowany użytkownik dla własnego dokumentu LUB rola admin/super-admin
+    // Usuwanie: tylko użytkownicy z rolą admin/super-admin
     match /allowedUsers/{docId} {
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null
-        && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email))
-        && get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email)).data.role in ['admin', 'super-admin'];
+      allow create, update: if request.auth != null && (
+        docId == request.auth.token.email.lower()
+        || (exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower()))
+            && get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower())).data.role in ['admin', 'super-admin'])
+      );
       allow delete: if request.auth != null
-        && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email))
-        && get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email)).data.role in ['admin', 'super-admin']
+        && exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower()))
+        && get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower())).data.role in ['admin', 'super-admin']
         && resource.data.role != 'super-admin';
     }
 
