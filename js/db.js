@@ -561,26 +561,6 @@ export async function getCompletedReminders() {
     return combined.sort((a, b) => parseDate(b.updatedAt || b.lastExecutedAt) - parseDate(a.updatedAt || a.lastExecutedAt));
 }
 
-// Pobierz jedno przypomnienie (z kwerendą private -> shared fallback)
-export async function getReminder(id) {
-    const currentUid = uid();
-    if (!currentUid) return null;
-
-    try {
-        const privateRef = userDoc('reminders', id);
-        const snap = await getDoc(privateRef);
-        if (snap.exists()) return { id: snap.id, isShared: false, ...snap.data() };
-    } catch (e) {}
-
-    try {
-        const sharedRef = doc(db, SHARED_ALERTS_COL, id);
-        const snap = await getDoc(sharedRef);
-        if (snap.exists()) return { id: snap.id, isShared: true, ...snap.data() };
-    } catch (e) {}
-
-    return null;
-}
-
 // ============================================================
 // USER PROFILE
 // ============================================================

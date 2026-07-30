@@ -1461,40 +1461,6 @@ function renderEventHistory(historyList) {
     }).join('');
 }
 
-export function daysUntil(date) {
-    if (!date) return Infinity;
-    if (date.toDate) date = date.toDate();
-    if (typeof date === 'string') date = new Date(date);
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const target = new Date(date);
-    target.setHours(0, 0, 0, 0);
-    return Math.ceil((target - now) / (1000 * 60 * 60 * 24));
-}
-
-export function getAlertStatus(daysLeft) {
-    if (daysLeft < 0)  return 'overdue';
-    if (daysLeft <= 7) return 'danger';
-    if (daysLeft <= 14) return 'danger';
-    if (daysLeft <= 30) return 'warning';
-    return 'ok';
-}
-
-export function getCountdownText(daysLeft) {
-    if (daysLeft < 0) return `Przeterminowane (${Math.abs(daysLeft)} dni temu)`;
-    if (daysLeft === 0) return 'Termin dzisiaj!';
-    if (daysLeft === 1) return 'Jutro!';
-    return `za ${daysLeft} dni`;
-}
-
-export function debounce(fn, ms = 300) {
-    let timer;
-    return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn(...args), ms);
-    };
-}
-
 
 
 // ============================================================
