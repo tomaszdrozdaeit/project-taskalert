@@ -62,6 +62,13 @@ const ROLE_BADGES = {
     'observer': { label: 'Obserwator', icon: '👁️', color: '#7c3aed' }
 };
 
+function getStatusKey(days) {
+    if (days < 0) return 'overdue';
+    if (days <= 14) return 'danger';
+    if (days <= 30) return 'warning';
+    return 'ok';
+}
+
 export function render() {
     return `
         <div class="page-header animate-in">
@@ -69,22 +76,32 @@ export function render() {
             <p class="page-subtitle">Współdzielone alerty i zadania — zarządzaj alertami swojego zespołu</p>
         </div>
 
+        <div class="filter-bar animate-in">
+            <div class="search-input-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="team-search" placeholder="Szukaj po nazwie, kategorii, osobie...">
+            </div>
+            <select id="team-status-filter" class="filter-select">
+                <option value="all">Wszystkie statusy</option>
+                <option value="overdue">🔴 Przeterminowane</option>
+                <option value="danger">🟠 Do 14 dni</option>
+                <option value="warning">🟡 Do 30 dni</option>
+                <option value="ok">🟢 Powyżej 30 dni</option>
+            </select>
+            <button class="btn btn-primary" id="add-team-alert-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Nowy alert zespołowy</span>
+            </button>
+        </div>
+
         <div class="card animate-in" style="margin-bottom:20px;">
-            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
                 <div class="tab-bar" id="team-tabs">
                     <button class="tab-btn active" data-tab="all">Wszystkie</button>
                     <button class="tab-btn" data-tab="owner">👑 Moje zlecone</button>
                     <button class="tab-btn" data-tab="executor">🔧 Zlecone mi</button>
                     <button class="tab-btn" data-tab="observer">👁️ Obserwowane</button>
                 </div>
-                <button class="btn btn-primary" id="add-team-alert-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span>Nowy alert zespołowy</span>
-                </button>
-            </div>
-
-            <div class="filter-bar" style="margin:16px 0;">
-                <input type="text" id="team-search" placeholder="🔍 Szukaj..." class="search-input" style="flex:1;">
             </div>
 
             <div id="team-alerts-list">
@@ -98,23 +115,27 @@ export function render() {
 export function init() {
     const tabBar = document.getElementById('team-tabs');
     const searchInput = document.getElementById('team-search');
+    const statusFilter = document.getElementById('team-status-filter');
     const addBtn = document.getElementById('add-team-alert-btn');
 
     let allAlerts = [];
 
-    tabBar.addEventListener('click', (e) => {
-        const btn = e.target.closest('.tab-btn');
-        if (!btn) return;
-        currentTab = btn.dataset.tab;
-        tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        renderFiltered();
-    });
+    if (tabBar) {
+        tabBar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.tab-btn');
+            if (!btn) return;
+            currentTab = btn.dataset.tab;
+            tabBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderFiltered();
+        });
+    }
 
-    addBtn.addEventListener('click', () => showAddTeamAlertModal());
+    if (addBtn) addBtn.addEventListener('click', () => showAddTeamAlertModal());
 
     const renderFiltered = () => {
-        const query = (searchInput.value || '').trim().toLowerCase();
+        const query = (searchInput?.value || '').trim().toLowerCase();
+        const statusVal = statusFilter?.value || 'all';
         const uid = currentUser?.uid;
 
         let filtered = allAlerts;
@@ -124,6 +145,10 @@ export function init() {
                 const p = (a.participants || []).find(p => p.uid === uid);
                 return p && p.role === currentTab;
             });
+        }
+
+        if (statusVal !== 'all') {
+            filtered = filtered.filter(a => getStatusKey(daysUntil(a.expiryDate)) === statusVal);
         }
 
         if (query) {
@@ -140,7 +165,8 @@ export function init() {
         renderAlertsList(filtered, allAlerts.length);
     };
 
-    searchInput.addEventListener('input', renderFiltered);
+    if (searchInput) searchInput.addEventListener('input', renderFiltered);
+    if (statusFilter) statusFilter.addEventListener('change', renderFiltered);
 
     unsubscribe = onSharedAlertsChange((alerts) => {
         allAlerts = alerts;

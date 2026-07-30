@@ -28,28 +28,29 @@ export function render() {
             <p class="page-subtitle">Zarządzanie dostępem do aplikacji — dodawaj, edytuj i dezaktywuj konta</p>
         </div>
 
+        <div class="filter-bar animate-in">
+            <div class="search-input-wrapper">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="user-search" placeholder="Szukaj po nazwie lub e-mail...">
+            </div>
+            <select id="user-role-filter" class="filter-select">
+                <option value="all">Wszystkie role</option>
+                <option value="super-admin">Super Admin</option>
+                <option value="admin">Administrator</option>
+                <option value="user">Użytkownik</option>
+            </select>
+            <select id="user-status-filter" class="filter-select">
+                <option value="all">Wszystkie stany</option>
+                <option value="active">🟢 Aktywni</option>
+                <option value="blocked">🔴 Zablokowani</option>
+            </select>
+            <button class="btn btn-primary" id="add-user-btn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Dodaj użytkownika</span>
+            </button>
+        </div>
+
         <div class="card animate-in" style="margin-bottom:20px;">
-            <div class="section-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-                <h2 class="section-title">
-                    <span class="section-icon">🔐</span>
-                    Lista autoryzowanych użytkowników
-                </h2>
-                <button class="btn btn-primary" id="add-user-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    <span>Dodaj użytkownika</span>
-                </button>
-            </div>
-
-            <div class="filter-bar" style="margin-bottom:16px;">
-                <input type="text" id="user-search" placeholder="🔍 Szukaj po nazwie lub e-mail..." class="search-input" style="flex:1;">
-                <select id="user-role-filter" class="filter-select">
-                    <option value="all">Wszystkie role</option>
-                    <option value="super-admin">Super Admin</option>
-                    <option value="admin">Administrator</option>
-                    <option value="user">Użytkownik</option>
-                </select>
-            </div>
-
             <div id="users-list">
                 <div class="page-loader"><div class="spinner"></div></div>
             </div>
@@ -62,6 +63,7 @@ export function init() {
     const addBtn = document.getElementById('add-user-btn');
     const searchInput = document.getElementById('user-search');
     const roleFilter = document.getElementById('user-role-filter');
+    const statusFilter = document.getElementById('user-status-filter');
 
     // Sprawdź czy użytkownik ma uprawnienia admin / super-admin
     const currentEmail = (currentUser?.email || '').trim().toLowerCase();
@@ -79,13 +81,14 @@ export function init() {
         return;
     }
 
-    addBtn.addEventListener('click', () => showAddUserModal());
+    if (addBtn) addBtn.addEventListener('click', () => showAddUserModal());
 
     let allUsers = [];
 
     const renderFiltered = () => {
-        const query = (searchInput.value || '').trim().toLowerCase();
-        const roleVal = roleFilter.value;
+        const query = (searchInput?.value || '').trim().toLowerCase();
+        const roleVal = roleFilter?.value || 'all';
+        const statusVal = statusFilter?.value || 'all';
 
         let filtered = allUsers;
         if (query) {
@@ -97,12 +100,16 @@ export function init() {
         if (roleVal !== 'all') {
             filtered = filtered.filter(u => u.role === roleVal);
         }
+        if (statusVal !== 'all') {
+            filtered = filtered.filter(u => statusVal === 'active' ? (u.isActive !== false) : (u.isActive === false));
+        }
 
         renderUsersList(filtered, allUsers.length);
     };
 
-    searchInput.addEventListener('input', renderFiltered);
-    roleFilter.addEventListener('change', renderFiltered);
+    if (searchInput) searchInput.addEventListener('input', renderFiltered);
+    if (roleFilter) roleFilter.addEventListener('change', renderFiltered);
+    if (statusFilter) statusFilter.addEventListener('change', renderFiltered);
 
     unsubscribe = onAllowedUsersChange(async (users) => {
         if (!users || users.length === 0) {
