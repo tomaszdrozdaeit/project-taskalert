@@ -491,7 +491,7 @@ export function onRemindersChange(callback, statusFilter = 'active') {
             });
         notify();
     }, (err) => {
-        console.warn('[DB] Błąd nasłuchiwania alertów zespołowych:', err);
+        // Cichy fallback przy braku dostępu do alertów zespołowych
         sharedReminders = [];
         notify();
     });
@@ -626,7 +626,7 @@ export async function getAllowedUsers() {
         return snap.docs.map(d => ({ id: d.id, ...d.data() }))
             .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     } catch (err) {
-        console.warn('[DB] Błąd odczytu allowedUsers:', err);
+        // Cichy fallback przy braku dostępu do odczytu z listy whitelisty
         return [];
     }
 }

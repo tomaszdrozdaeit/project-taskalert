@@ -63,7 +63,7 @@ export async function getUserRole(email) {
             return snap.data().role || 'user';
         }
     } catch (err) {
-        console.warn('[Auth] Błąd pobierania roli:', err);
+        // Cichy fallback na podstawową rolę użytkownika
     }
     return 'user';
 }
@@ -112,7 +112,7 @@ export async function ensureUserProfile(user) {
             }, { merge: true });
         }
     } catch (err) {
-        console.warn('[Auth] Błąd synchronizacji z allowedUsers:', err);
+        // Cichy fallback dla synchronizacji profilu
     }
 
     return true;
@@ -150,7 +150,7 @@ export async function initAllowedUsers() {
             }
         }
     } catch (err) {
-        console.warn('[Auth] Nie można zaktualizować allowedUsers:', err);
+        // Cichy fallback inicjalizacji
     }
 }
 
