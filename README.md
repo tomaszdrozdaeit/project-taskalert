@@ -23,7 +23,7 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji + nawigacja
 ├── manifest.json              # Manifest PWA (gcm_sender_id dla FCM + instalacja)
-├── service-worker.js          # Pamięć podręczna (cache v14) + obsługa PUSH w tle i akcji drzemki
+├── service-worker.js          # Pamięć podręczna (cache v23) + obsługa PUSH w tle i akcji drzemki
 ├── firestore.rules            # Reguły zabezpieczeń Firestore (strict owner, allowedUsers, sharedAlerts)
 ├── RESTART_HANDOVER.md        # Przewodnik restartowy dla agenta po restarcie komputera
 ├── plan_wdrozenia_taskalert_v3.pdf  # Dokumentacja wdrożeniowa
