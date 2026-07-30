@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onAllowedUsersChange, addAllowedUser, updateAllowedUser, deleteAllowedUser } from '../db.js';
+import { onAllowedUsersChange, getAllowedUsers, addAllowedUser, updateAllowedUser, deleteAllowedUser } from '../db.js';
 import { SUPER_ADMIN_EMAIL, currentUser } from '../auth.js';
 
 let unsubscribe = null;
@@ -104,8 +104,16 @@ export function init() {
     searchInput.addEventListener('input', renderFiltered);
     roleFilter.addEventListener('change', renderFiltered);
 
-    unsubscribe = onAllowedUsersChange((users) => {
-        allUsers = users;
+    unsubscribe = onAllowedUsersChange(async (users) => {
+        if (!users || users.length === 0) {
+            try {
+                allUsers = await getAllowedUsers();
+            } catch (e) {
+                allUsers = users || [];
+            }
+        } else {
+            allUsers = users;
+        }
         renderFiltered();
     });
 

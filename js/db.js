@@ -639,12 +639,16 @@ export function onAllowedUsersChange(callback) {
             const users = snap.docs.map(d => ({ id: d.id, ...d.data() }))
                 .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
             callback(users);
-        }, (err) => {
-            console.warn('[DB] Błąd nasłuchiwania allowedUsers:', err);
-            callback([]);
+        }, async (err) => {
+            try {
+                const users = await getAllowedUsers();
+                callback(users);
+            } catch (e) {
+                callback([]);
+            }
         });
     } catch (e) {
-        callback([]);
+        getAllowedUsers().then(callback).catch(() => callback([]));
         return () => {};
     }
 }
