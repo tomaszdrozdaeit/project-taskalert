@@ -1294,34 +1294,7 @@ function updateSubtypeOptions(selectEl, category) {
     ).join('');
 }
 
-// ============================================================
-// GLOBAL TASKALERT API EXPORT (for window.TaskAlert)
-// ============================================================
-window.TaskAlert = {
-    showToast,
-    showModal,
-    closeModal,
-    showConfirm,
-    showAddReminderModal,
-    showReminderDetailsModal,
-    showExecuteModal,
-    escHtml,
-    navigateTo,
-    formatDate,
-    formatDateTime,
-    daysUntil,
-    getAlertStatus,
-    getCountdownText,
-    getStatusClass,
-    getCountdownClass,
-    debounce
-};
 
-window.showReminderDetailsModal = showReminderDetailsModal;
-window.showAddReminderModal = showAddReminderModal;
-window.closeModal = closeModal;
-window.showConfirm = showConfirm;
-window.showToast = showToast;
 
 // ============================================================
 // HELPERS
