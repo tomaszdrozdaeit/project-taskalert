@@ -7,11 +7,9 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
 ## 📌 1. Stan Gałęzi Git (Branching Strategy)
 
 - **`main` (Produkcja):** 
-  - Gałąź produkcyjna została cofnięta do stabilnej wersji sprzed dzisiejszych prac (`commit 008862c`).
-  - **ZASADA:** NIE wgrywamy żadnych zmian na `main` (`git push origin main`) dopóki pełne testy lokalne na `v4-dev` nie zostaną ukończone i zaakceptowane przez użytkownika.
-- **`v4-dev` (Środowisko Deweloperskie / Lokalne):**
-  - Aktywny branch ze wszystkimi nowościami, poprawkami i refaktoryzacją TaskAlert v4.
-  - Zmiany są zapisane lokalnie i zsynchronizowane z `origin/v4-dev`.
+  - Gałąź została w pełni zaktualizowana i scalona z `v4-dev` (`commit 51e7e32`). Wszystkie poprawki oraz zaktualizowane `firestore.rules` są zsynchronizowane z repozytorium zdalnym i Firebase Cloud.
+- **`v4.1-dev` (Środowisko Deweloperskie / Nowa Gałąź):**
+  - Nowa aktywna gałąź deweloperska utowrzona z `main` do dalszych prac i testów.
 
 ---
 
@@ -21,7 +19,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    ```bash
    cd c:\03_Antigravity\06_TaskAlert
    ```
-2. **Upewnij się, że jesteś na gałęzi `v4-dev`:**
+2. **Upewnij się, że jesteś na gałęzi `v4.1-dev`:**
    ```bash
    git branch
    # Wynik powinien wskazywać: * v4-dev
