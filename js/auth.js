@@ -106,10 +106,15 @@ export async function ensureUserProfile(user) {
                 lastLoginAt: serverTimestamp()
             });
         } else {
-            await setDoc(allowedRef, {
-                name: user.displayName || allowedSnap.data().name || currentEmail.split('@')[0],
+            const updatePayload = {
+                name: user.displayName || allowedSnap.data()?.name || currentEmail.split('@')[0],
                 lastLoginAt: serverTimestamp()
-            }, { merge: true });
+            };
+            if (currentEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
+                updatePayload.role = 'super-admin';
+                updatePayload.isActive = true;
+            }
+            await setDoc(allowedRef, updatePayload, { merge: true });
         }
     } catch (err) {
         // Cichy fallback dla synchronizacji profilu

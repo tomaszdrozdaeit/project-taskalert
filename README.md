@@ -10,7 +10,7 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties i glassmorphism) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In z automatyczną weryfikacją whitelisty `allowedUsers`).
-- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v18`, wykrywaniem platformy (Android/iOS) oraz dedykowanym banerem instalacyjnym.
+- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v19`, wykrywaniem platformy (Android/iOS) oraz dedykowanym banerem instalacyjnym.
 - **Powiadomienia PUSH**: Firebase Cloud Messaging (FCM) + Cloud Functions (Node.js 18, Cron o 9:00 czasu polskiego `Europe/Warsaw` z obsługą czasu letniego/zimowego DST, akcje drzemki 5/10 min).
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions / Node.js dobowe weryfikacje.
 - **Testy**: Automatyczne testy reguł bezpieczeństwa Firestore (`tests/firestore-rules.test.js`) + audyt bezpieczeństwa.

@@ -631,6 +631,24 @@ export async function getAllowedUsers() {
     }
 }
 
+// Nasłuchuj zmian na liście allowedUsers (w czasie rzeczywistym)
+export function onAllowedUsersChange(callback) {
+    try {
+        const allowedRef = collection(db, 'allowedUsers');
+        return onSnapshot(allowedRef, (snap) => {
+            const users = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+                .sort((a, b) => (a.name || a.email || '').localeCompare(b.name || b.email || ''));
+            callback(users);
+        }, (err) => {
+            console.warn('[DB] Błąd nasłuchiwania allowedUsers:', err);
+            callback([]);
+        });
+    } catch (e) {
+        callback([]);
+        return () => {};
+    }
+}
+
 // Pobierz jednego dozwolonego użytkownika po email
 export async function getAllowedUser(email) {
     const normalizedEmail = email.trim().toLowerCase();

@@ -238,10 +238,15 @@ onAuthChange(async (user) => {
         try { await initAllowedUsers(); } catch (e) { console.warn('[App] initAllowedUsers error:', e); }
 
         let userRole = 'user';
-        try {
-            userRole = await getUserRole(user.email);
-        } catch (e) {
-            console.warn('[App] getUserRole error:', e);
+        const userEmailNorm = (user.email || '').trim().toLowerCase();
+        if (userEmailNorm === SUPER_ADMIN_EMAIL.toLowerCase()) {
+            userRole = 'super-admin';
+        } else {
+            try {
+                userRole = await getUserRole(user.email);
+            } catch (e) {
+                console.warn('[App] getUserRole error:', e);
+            }
         }
         window._taskAlertUserRole = userRole;
 
