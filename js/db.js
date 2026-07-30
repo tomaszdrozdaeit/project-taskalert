@@ -34,7 +34,7 @@ function userDoc(path, id) {
 }
 
 // Helper do bezpiecznej konwersji daty
-function parseDate(d) {
+export function parseDate(d) {
     if (!d) return new Date(0);
     if (d instanceof Timestamp) return d.toDate();
     if (typeof d.toDate === 'function') return d.toDate();
@@ -52,7 +52,7 @@ function parseDate(d) {
 }
 
 // Helper do bezpiecznej konwersji dowolnej daty na Firestore Timestamp
-function toFirestoreTimestamp(d) {
+export function toFirestoreTimestamp(d) {
     if (!d) return Timestamp.now();
     if (d instanceof Timestamp) return d;
     if (typeof d.toDate === 'function') return Timestamp.fromDate(d.toDate());
