@@ -437,7 +437,9 @@ export async function getActiveReminders() {
         const snap = await getDocs(sharedRef);
         sharedReminders = snap.docs.map(d => ({ id: d.id, isShared: true, ...d.data() })).filter(a => {
             const uids = a.participantUids || (a.participants || []).map(p => p.uid);
-            return uids.includes(currentUid) && a.status === 'active';
+            const emails = (a.participants || []).map(p => (p.email || '').toLowerCase());
+            const currentEmail = auth.currentUser?.email?.toLowerCase() || '';
+            return (uids.includes(currentUid) || emails.includes(currentEmail)) && a.status === 'active';
         });
     } catch (e) {}
 
@@ -493,7 +495,9 @@ export function onRemindersChange(callback, statusFilter = 'active') {
             .map(d => ({ id: d.id, isShared: true, ...d.data() }))
             .filter(a => {
                 const uids = a.participantUids || (a.participants || []).map(p => p.uid);
-                return uids.includes(currentUid);
+                const emails = (a.participants || []).map(p => (p.email || '').toLowerCase());
+                const currentEmail = auth.currentUser?.email?.toLowerCase() || '';
+                return uids.includes(currentUid) || emails.includes(currentEmail);
             });
         notify();
     }, (err) => {
@@ -559,7 +563,9 @@ export async function getCompletedReminders() {
         const snap = await getDocs(sharedRef);
         sharedRem = snap.docs.map(d => ({ id: d.id, isShared: true, ...d.data() })).filter(a => {
             const uids = a.participantUids || (a.participants || []).map(p => p.uid);
-            return uids.includes(currentUid) && a.status === 'completed';
+            const emails = (a.participants || []).map(p => (p.email || '').toLowerCase());
+            const currentEmail = auth.currentUser?.email?.toLowerCase() || '';
+            return (uids.includes(currentUid) || emails.includes(currentEmail)) && a.status === 'completed';
         });
     } catch (e) {}
 
@@ -597,23 +603,41 @@ export async function sendManualNotification(reminder) {
         message: payload.message
     });
 
+    // Aktualizacja historii emaila — obsługa zarówno prywatnych jak i zespołowych alertów
     if (reminder.id) {
-        try {
-            const reminderRef = userDoc('reminders', reminder.id);
-            const snap = await getDoc(reminderRef);
-            if (snap.exists()) {
-                const currentData = snap.data();
-                const history = [...(currentData.history || [])];
-                history.push({
-                    type: 'email_sent',
-                    timestamp: Timestamp.now(),
-                    recipients: recipients,
-                    note: `Wysłano powiadomienie e-mail (${recipients.join(', ')})`
-                });
-                await updateDoc(reminderRef, { history, updatedAt: serverTimestamp() });
+        const historyEntry = {
+            type: 'email_sent',
+            timestamp: Timestamp.now(),
+            recipients: recipients,
+            note: `Wysłano powiadomienie e-mail (${recipients.join(', ')})`
+        };
+
+        if (reminder.isShared) {
+            // Alert zespołowy — zapisz historię do sharedAlerts
+            try {
+                const sharedRef = doc(db, SHARED_ALERTS_COL, reminder.id);
+                const snap = await getDoc(sharedRef);
+                if (snap.exists()) {
+                    const currentData = snap.data();
+                    const history = [...(currentData.history || []), historyEntry];
+                    await updateDoc(sharedRef, { history, updatedAt: serverTimestamp() });
+                }
+            } catch (err) {
+                console.warn('[DB] Błąd dodawania historii e-mail do alertu zespołowego:', err);
             }
-        } catch (err) {
-            console.warn('[DB] Błąd dodawania historii e-mail:', err);
+        } else {
+            // Alert prywatny — zapisz historię do users/{uid}/reminders
+            try {
+                const reminderRef = userDoc('reminders', reminder.id);
+                const snap = await getDoc(reminderRef);
+                if (snap.exists()) {
+                    const currentData = snap.data();
+                    const history = [...(currentData.history || []), historyEntry];
+                    await updateDoc(reminderRef, { history, updatedAt: serverTimestamp() });
+                }
+            } catch (err) {
+                console.warn('[DB] Błąd dodawania historii e-mail:', err);
+            }
         }
     }
 
@@ -784,17 +808,19 @@ export async function getSharedAlerts(filterRole = null) {
     const alertsRef = collection(db, SHARED_ALERTS_COL);
     const snap = await getDocs(alertsRef);
     const currentUid = uid();
+    const currentEmail = auth.currentUser?.email?.toLowerCase() || '';
 
     let alerts = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(a => {
             const uids = a.participantUids || (a.participants || []).map(p => p.uid);
-            return uids.includes(currentUid) && a.status === 'active';
+            const emails = (a.participants || []).map(p => (p.email || '').toLowerCase());
+            return (uids.includes(currentUid) || emails.includes(currentEmail)) && a.status === 'active';
         });
 
     if (filterRole) {
         alerts = alerts.filter(a => {
-            const participant = (a.participants || []).find(p => p.uid === currentUid);
+            const participant = (a.participants || []).find(p => p.uid === currentUid || (p.email || '').toLowerCase() === currentEmail);
             return participant && participant.role === filterRole;
         });
     }
@@ -882,11 +908,13 @@ export function onSharedAlertsChange(callback) {
     const currentUid = uid();
 
     return onSnapshot(alertsRef, (snap) => {
+        const currentEmail = auth.currentUser?.email?.toLowerCase() || '';
         const alerts = snap.docs
             .map(d => ({ id: d.id, ...d.data() }))
             .filter(a => {
                 const uids = a.participantUids || (a.participants || []).map(p => p.uid);
-                return uids.includes(currentUid);
+                const emails = (a.participants || []).map(p => (p.email || '').toLowerCase());
+                return uids.includes(currentUid) || emails.includes(currentEmail);
             });
 
         alerts.sort((a, b) => parseDate(a.expiryDate) - parseDate(b.expiryDate));

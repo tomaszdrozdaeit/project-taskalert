@@ -1674,6 +1674,13 @@ img {
 }
 
 /* ============================================================
+   COLLAPSIBLE FILTER BAR (Mobile Toggle)
+   ============================================================ */
+.filter-bar-compact {
+    display: none; /* Ukryty na desktop */
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 768px) {
@@ -1691,12 +1698,14 @@ img {
 
     .main-content {
         margin-left: 0;
-        padding: 16px;
-        padding-top: calc(var(--topbar-height) + 16px);
+        padding: 12px;
+        padding-top: calc(var(--topbar-height) + 12px);
+        overflow-x: hidden;
     }
 
     .stat-grid {
         grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
     }
 
     .modal {
@@ -1715,8 +1724,8 @@ img {
 
     .toast-container {
         bottom: 80px;
-        right: 16px;
-        left: 16px;
+        right: 12px;
+        left: 12px;
     }
 
     .toast {
@@ -1730,25 +1739,271 @@ img {
     }
 
     .page-title {
-        font-size: 1.4rem;
+        font-size: 1.3rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.82rem;
+    }
+
+    .page-header {
+        margin-bottom: 12px;
+    }
+
+    /* ── Collapsible Filter Bar on Mobile ─────────────── */
+    .filter-bar-compact {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+
+    .filter-toggle-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 14px;
+        background: var(--bg-input);
+        border: 1.5px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-secondary);
+        font-family: var(--font-body);
+        font-size: 0.85rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all var(--transition-fast);
+        flex: 1;
+    }
+
+    .filter-toggle-btn:active {
+        background: var(--accent-primary-bg);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .filter-toggle-btn.active {
+        background: var(--accent-primary-bg);
+        border-color: var(--accent-primary);
+        color: var(--accent-primary);
+    }
+
+    .filter-toggle-btn svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
     }
 
     .filter-bar {
+        display: none;
         flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+        overflow: hidden;
+        animation: filterSlideDown 0.3s ease;
+    }
+
+    .filter-bar.filter-bar-expanded {
+        display: flex;
+    }
+
+    @keyframes filterSlideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .search-input-wrapper {
         width: 100%;
     }
+
+    .search-input-wrapper input {
+        padding: 8px 12px 8px 36px;
+        font-size: 0.85rem;
+    }
+
+    .filter-select {
+        padding: 8px 10px;
+        font-size: 0.82rem;
+        width: 100%;
+    }
+
+    /* ── Responsive Reminder Cards ────────────────────── */
+    .reminder-card {
+        padding: 12px;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .reminder-title {
+        white-space: normal;
+        word-break: break-word;
+        font-size: 0.9rem;
+        line-height: 1.3;
+    }
+
+    .reminder-meta {
+        gap: 6px;
+        font-size: 0.75rem;
+    }
+
+    .reminder-countdown {
+        font-size: 0.78rem;
+    }
+
+    .reminder-actions {
+        width: 100%;
+        justify-content: flex-end;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-light);
+        margin-top: 2px;
+        gap: 2px;
+    }
+
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .btn-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* ── Dashboard Two Column ─────────────────────────── */
+    .dash-two-col {
+        grid-template-columns: 1fr !important;
+        gap: 12px;
+    }
+
+    /* ── Category Badge ───────────────────────────────── */
+    .category-badge {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+    }
+
+    /* ── Alert Chips ──────────────────────────────────── */
+    .alert-chip {
+        font-size: 0.68rem !important;
+        padding: 1px 6px !important;
+    }
+
+    /* ── Progress Bar ─────────────────────────────────── */
+    .progress-bar {
+        height: 3px;
+    }
+
+    /* ── Cards general ────────────────────────────────── */
+    .card {
+        padding: 14px;
+    }
+
+    /* ── Participant chips ────────────────────────────── */
+    .participant-chip {
+        font-size: 0.68rem;
+        padding: 2px 8px;
+    }
+
+    /* ── Modal footer buttons ─────────────────────────── */
+    .modal-footer {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .modal-footer .btn {
+        font-size: 0.82rem;
+        padding: 8px 12px;
+    }
 }
 
 @media (max-width: 480px) {
     .stat-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .stat-card {
+        padding: 12px;
+    }
+
+    .stat-value {
+        font-size: 1.4rem;
+    }
+
+    .stat-label {
+        font-size: 0.72rem;
     }
 
     .login-container {
         padding: 28px 20px;
+    }
+
+    .main-content {
+        padding: 10px;
+        padding-top: calc(var(--topbar-height) + 10px);
+    }
+
+    .page-title {
+        font-size: 1.15rem;
+    }
+
+    .page-subtitle {
+        font-size: 0.78rem;
+    }
+
+    /* ── Even more compact cards ──────────────────────── */
+    .reminder-card {
+        padding: 10px;
+        gap: 8px;
+    }
+
+    .reminder-status {
+        width: 10px;
+        height: 10px;
+    }
+
+    .reminder-title {
+        font-size: 0.85rem;
+    }
+
+    .reminder-countdown {
+        font-size: 0.75rem;
+    }
+
+    .reminder-actions {
+        gap: 0;
+    }
+
+    .btn-icon {
+        width: 30px;
+        height: 30px;
+    }
+
+    /* ── Filter toggle even more compact ──────────────── */
+    .filter-toggle-btn {
+        padding: 7px 10px;
+        font-size: 0.8rem;
+    }
+
+    /* ── Tab bar compact ──────────────────────────────── */
+    .tab-btn {
+        padding: 5px 10px;
+        font-size: 0.72rem;
+    }
+}
+
+@media (max-width: 360px) {
+    .stat-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-title {
+        font-size: 1.05rem;
     }
 }
 

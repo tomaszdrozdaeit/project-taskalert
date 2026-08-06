@@ -118,13 +118,16 @@ graph TD
 ### Kolekcja: `/allowedUsers/{email}` (Whitelist)
 ```json
 {
+  "uid": "firebase_auth_uid",
   "email": "jan@firma.pl",
   "name": "Jan Kowalski",
   "role": "admin",
   "isActive": true,
-  "createdAt": "Timestamp"
+  "createdAt": "Timestamp",
+  "lastLoginAt": "Timestamp"
 }
 ```
+> Pole `uid` jest automatycznie synchronizowane przy każdym logowaniu użytkownika (`ensureUserProfile`). Służy do poprawnego mapowania uczestników alertów zespołowych.
 
 ### Kolekcja: `/sharedAlerts/{alertId}` (Alerty Zespołowe)
 ```json
@@ -165,7 +168,7 @@ graph TD
 Aplikacja stosuje rygorystyczne reguły bezpieczeństwa Firestore (`firestore.rules`):
 - **`/users/{userId}/**`**: Dostęp wyłącznie dla właściciela UID.
 - **`/allowedUsers/{email}`**: Odczyt dla zalogowanych, zapis wyłącznie dla ról `admin` oraz `super-admin`. Usuwanie konta super-admina jest uniemożliwione.
-- **`/sharedAlerts/{alertId}`**: Dostęp przyznawany na podstawie obecności w tablicy uczestników.
+- **`/sharedAlerts/{alertId}`**: Dostęp przyznawany na podstawie obecności w tablicy uczestników. Filtrowanie po stronie klienta odbywa się zarówno po `participantUids` (Firebase UID), jak i po adresach e-mail uczestników — zapewniając kompatybilność wsteczną z danymi sprzed wersji 4.1.
 
 ### Testy Automatyczne
 Uruchomienie pakietu testów reguł bezpieczeństwa:

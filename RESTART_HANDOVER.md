@@ -1,4 +1,4 @@
-# 🚀 TaskAlert v4 — Instrukcja Wdrożeniowa i Testowa Po Restarcie Komputera
+# 🚀 TaskAlert v4.1 — Instrukcja Wdrożeniowa i Testowa Po Restarcie Komputera
 
 Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera) po restarcie komputera, opisujący stan projektu, strukturę gałęzi Git oraz krok po kroku procedurę weryfikacji i wdrożenia.
 
@@ -7,9 +7,13 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
 ## 📌 1. Stan Gałęzi Git (Branching Strategy)
 
 - **`main` (Produkcja):** 
-  - Gałąź zaktualizowana i scalona ze wszystkimi poprawkami (auto-fill e-mail w alertach zespołowych, natychmiastowa wysyłka maila w modalu, widok Historia, zaktualizowane reguły `firestore.rules`).
+  - Główna gałąź produkcyjna gotowa do zaktualizowania z v4.1-dev.
 - **`v4.1-dev` (Środowisko Deweloperskie):**
-  - Aktywna gałąź zaktualizowana i gotowa do pracy.
+  - Aktywna gałąź zawierająca pełny pakiet poprawek z `uwagi_v3.md`:
+    - Naprawa race condition przycisku instalacji PWA (`window.__pwa_deferred_prompt`).
+    - Nowoczesny, kolapsowalny pasek wyszukiwania i filtrów (`.filter-bar-compact`, toggle lupy) na smartfonach.
+    - Całkowicie elastyczne karty alertów (`.reminder-card` z `flex-wrap` i kompaktowym układem przycisków na mobile).
+    - Podbicie wersji Service Workera do `taskalert-v26`.
 
 ---
 
@@ -24,7 +28,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    git branch
    # Wynik powinien wskazywać: * v4.1-dev
    ```
-   *Jeśli jesteś na `main`, przełącz się:* `git checkout v4-dev`
+   *Jeśli jesteś na `main`, przełącz się:* `git checkout v4.1-dev`
 
 3. **Uruchom lokalny serwer HTTP:**
    ```bash
@@ -37,65 +41,51 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
 
 ---
 
-## 📑 3. Lista Zrealizowanych Ulepszeń i Poprawek (w `v4-dev`)
+## 📑 3. Lista Zrealizowanych Ulepszeń i Poprawek (w `v4.1-dev`)
 
-1. **PWA Install Banner (K1):**
-   - Moduł `js/modules/pwa-install-banner.js` wykrywa system Android (`beforeinstallprompt`) oraz iOS (instrukcja dodania do ekranu głównego Safari).
-2. **Powiadomienia PUSH & Cloud Functions (K2):**
-   - Obsługa FCM w `js/modules/push-notifications.js` oraz Cloud Functions o 9:00 czasu polskiego (`Europe/Warsaw` z obsługą czasów letniego/zimowego DST).
-   - Akcje drzemki (5 min / 10 min) w `service-worker.js`.
-3. **Alerty Zespołowe / Współdzielone (K3):**
-   - Dedykowany moduł `js/modules/team-alerts.js`.
-   - Przełącznik `👥 Utwórz jako alert zespołowy` z wyborem wykonawców/obserwatorów w głównym formularzu tworzenia przypomnienia w `app.js`.
-   - Zjednoczona warstwa danych w `db.js` — alerty zespołowe automatycznie pojawiają się w swoich kategoriach (Samochody, Kadry, Inne), na Pulpicie i w Historii.
-4. **Notatki w E-mailu (K4):**
-   - Notatka/opis dodawana w wyróżnionej sekcji HTML w e-mailach (`mail-utils.mjs` i `daily_check.js`).
-5. **Domyślne Dni Alertów (K5):**
-   - Zestaw `[30, 14, 7, 3, 1]` w `auth.js`, `db.js`, `app.js` i `ustawienia.js`.
-6. **Rozwijana Lista E-mail z Bazy (`allowedUsers`) (K6):**
-   - Wybór adresów z listy zautoryzowanych użytkowników.
-7. **Whitelisty Użytkowników & Super-Admin (K7):**
-   - Panel `js/modules/admin-users.js`.
-   - Bezwarunkowa ranga `super-admin` dla konta `tomasz.drozda.eit@gmail.com`.
-   - Automatyczna synchronizacja logujących się użytkowników do kolekcji `allowedUsers` w `ensureUserProfile(user)` w `auth.js`.
-8. **Poprawki Szczegółów Alerta & Izolacji Kategorii:**
-   - Wyeksportowanie `window.TaskAlert` w `app.js` z metodami `showReminderDetailsModal`, `showModal`, `showToast`, `showConfirm`. Kliknięcie karty z dowolnego miejsca otwiera modal szczegółów.
-   - Ścisła izolacja w `inne.js`: alerty z kategorii niestandardowych (np. Nieruchomości, Polisy, Sprzęt) wyświetlają się **wyłącznie** na dedykowanej stronie podkategorii (`#cat-<id>`) i są wykluczone z głównej listy "Inne".
-9. **Logowanie z Google:**
-   - Dodano automatyczną obsługę `signInWithRedirect` w `auth.js` na wypadek zablokowania okna popup przez przeglądarkę.
+1. **PWA Install Banner Fix (Zgłoszenie 1 z `uwagi_v3.md`):**
+   - Rozwiązano problem z race condition w `js/modules/pwa-install-banner.js` poprzez przechwytywanie zdarzenia `beforeinstallprompt` globalnie na samym początku ładowania aplikacji w `app.js` (`window.__pwa_deferred_prompt`).
+   - Przycisk "Zainstaluj" działa płynnie, a w przypadku braku natywnego wywołania podaje czytelną instrukcję dla użytkownika.
+2. **Kolapsowalne Filtry na Smartfonach (Zgłoszenie 2 z `uwagi_v3.md`):**
+   - Na ekranach mobilnych (≤768px) pasek filtrów jest domyślnie zwinięty do czytelnego paska z przyciskiem "Szukaj i filtruj" oraz zwięzłym przyciskiem "Dodaj" / "Nowy".
+   - Kliknięcie przycisku płynnie wysuwa/chowa filtry z animacją slide-down (`.filter-bar-expanded`), oszczędzając miejsce na ekranie telefonu.
+3. **Elastyczne Karty Alertów i Audyt Mobilny (Zgłoszenia 3 i 4 z `uwagi_v3.md`):**
+   - Przeprojektowano układy `.reminder-card` w `style.css` na mobile (breakpointy 768px, 480px, 360px).
+   - Przycisk akcji (`.reminder-actions`) na małych ekranach przenosi się estetycznie do dolnej części karty z delikatnym separatorem.
+   - Tytuły alertów (`.reminder-title`) zawijają się bez obcinania tekstu ani wychodzenia poza ekran.
+   - Zabezpieczono `.main-content` przed poziomym suwakiem (`overflow-x: hidden`).
+4. **Alerty Zespołowe i Filtrowanie po Email:**
+   - Dodano automatyczną synchronizację `uid` użytkownika do `allowedUsers` oraz fallback po adresie e-mail w zapytaniach do alertów zespołowych.
+5. **Wersjonowanie Cache Service Workera:**
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v26` w `service-worker.js`.
 
 ---
 
-## 🧪 4. Plan Testów Lokalnych Po Restarcie
+## 🧪 4. Plan Testów Mobilnych
 
-Przetestuj w przeglądarce pod adresem **http://127.0.0.1:3001**:
+Przetestuj w przeglądarce (np. z użyciem DevTools w trybie emulacji smartfona 375x667):
 
-1. **Logowanie:** Logowanie przez e-mail (`tomasz.drozda.eit@gmail.com`) lub logowanie z Google.
-2. **Pulpit & Klikanie w karty:** Kliknij w dowolną kartę alertu na Pulpicie — upewnij się, że okno szczegółów z historią zdarzeń otwiera się poprawnie.
-3. **Tworzenie Alerta:** 
-   - Kliknij `+` / `Dodaj`.
-   - Wypróbuj utworzenie alertu zwykłego oraz przełącz opcję `👥 Utwórz jako alert zespołowy`.
-   - Sprawdź, czy alert dodaje się bez błędów.
-4. **Izolacja Kategorii:** Stwórz alert w nowej customowej kategorii (np. "Sprzęt") i upewnij się, że jest widoczny TYLKO pod tą kategorią, a NIE w "Inne".
-5. **Panel Użytkownicy:** Przejdź do zakładki *Użytkownicy* — upewnij się, że lista zalogowanych kont ładuje się z rolami.
+1. **Baner PWA:** Po zalogowaniu zweryfikuj pojawienie się banera instalacji i kliknij "Zainstaluj".
+2. **Kategorie i Filtry:** Przejdź do zakładki *Samochody*, *Kadry*, *Inne* lub *Alerty Zespołowe*. Upewnij się, że filtr jest zwinięty, a kliknięcie "Szukaj i filtruj" go rozwija.
+3. **Karty Alertów:** Sprawdź czy karciane widoki alertów nie wychodzą poza krawędź ekranu i czy przyciski akcji są łatwo dostępne.
 
 ---
 
-## 🚀 5. Finałowa Publikacja na GitHub (Po Akceptacji)
+## 🚀 5. Finałowa Publikacja na GitHub
 
-Gdy testy lokalne zakończą się pomyślnie i użytkownik wyrazi zgodę:
+Wykonaj scalenie oraz push na produkcję:
 
 ```bash
-# 1. Scalenie v4-dev do main
+# 1. Scalenie v4.1-dev do main
 git checkout main
-git merge v4-dev
+git merge v4.1-dev
 
 # 2. Wysłanie na produkcyjny GitHub Pages
 git push origin main
 
-# 3. Powrót na v4-dev
-git checkout v4-dev
+# 3. Powrót na v4.1-dev
+git checkout v4.1-dev
 ```
 
 ---
-*Dokument wygenerowany automatycznie dla kontynuacji pracy w nowej sesji.*
+*Dokument zaktualizowany automatycznie po wdrożeniu poprawek z `uwagi_v3.md`.*

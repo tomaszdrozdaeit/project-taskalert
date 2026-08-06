@@ -6,6 +6,22 @@
 import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole, ensureUserProfile, SUPER_ADMIN_EMAIL } from './auth.js';
 import { initDefaultCategories, getCategories, getAllowedUsers } from './db.js';
 
+// ── Global PWA Install Prompt Capture ───────────────────
+// Przechwytujemy beforeinstallprompt natychmiast na starcie,
+// zanim lazy-loaded moduł pwa-install-banner.js zostanie zaimportowany.
+// Bez tego event przepada, bo odpala się przed zalogowaniem użytkownika.
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.__pwa_deferred_prompt = e;
+    console.log('[PWA] beforeinstallprompt przechwycony globalnie');
+});
+
+window.addEventListener('appinstalled', () => {
+    window.__pwa_deferred_prompt = null;
+    localStorage.setItem('taskalert-pwa-installed', 'true');
+    console.log('[PWA] Aplikacja zainstalowana');
+});
+
 // ============================================================
 // THEME MANAGEMENT
 // ============================================================

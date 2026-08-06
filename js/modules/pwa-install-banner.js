@@ -6,8 +6,6 @@
 const PWA_BANNER_DISMISSED_KEY = 'taskalert-pwa-banner-dismissed';
 const PWA_BANNER_INSTALLED_KEY = 'taskalert-pwa-installed';
 
-let deferredPrompt = null;
-
 // Wykryj platformę
 function getPlatform() {
     const ua = navigator.userAgent || '';
@@ -19,20 +17,6 @@ function getPlatform() {
     return { isIOS, isAndroid, isMobile: isIOS || isAndroid, isStandalone };
 }
 
-// Przechwycenie beforeinstallprompt (Android / Chrome)
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    console.log('[PWA] beforeinstallprompt przechwycony');
-});
-
-// Detektuj sukces instalacji
-window.addEventListener('appinstalled', () => {
-    localStorage.setItem(PWA_BANNER_INSTALLED_KEY, 'true');
-    removeBanner();
-    console.log('[PWA] Aplikacja zainstalowana');
-});
-
 export function showInstallBanner() {
     const { isIOS, isAndroid, isMobile, isStandalone } = getPlatform();
 
@@ -40,7 +24,6 @@ export function showInstallBanner() {
     // - Już zainstalowano
     // - Już działa w trybie standalone
     // - Baner był zamknięty (w ciągu 7 dni)
-    // - Nie jest to urządzenie mobilne
     if (isStandalone) return;
     if (localStorage.getItem(PWA_BANNER_INSTALLED_KEY)) return;
 
@@ -50,7 +33,10 @@ export function showInstallBanner() {
         if (daysSinceDismissed < 7) return;
     }
 
-    // Na desktop z Android prompt dostępny — też pokaż
+    // Globalna zmienna przechwycona w app.js
+    const deferredPrompt = window.__pwa_deferred_prompt || null;
+
+    // Na desktop bez Android prompt — nie pokazuj
     if (!isMobile && !deferredPrompt) return;
 
     setTimeout(() => {
@@ -65,6 +51,9 @@ function createBanner(isIOS, isAndroid) {
     const banner = document.createElement('div');
     banner.id = 'pwa-install-banner';
     banner.className = 'pwa-banner';
+
+    // Odczytaj globalny prompt (może się pojawić w międzyczasie)
+    const deferredPrompt = window.__pwa_deferred_prompt || null;
 
     let instructionHtml = '';
     let actionHtml = '';
@@ -140,16 +129,27 @@ function createBanner(isIOS, isAndroid) {
     if (dismissBtn) dismissBtn.addEventListener('click', dismiss);
     if (closeX) closeX.addEventListener('click', dismiss);
 
-    if (installBtn && deferredPrompt) {
+    if (installBtn) {
         installBtn.addEventListener('click', async () => {
-            deferredPrompt.prompt();
-            const result = await deferredPrompt.userChoice;
-            console.log('[PWA] Install prompt result:', result.outcome);
-            if (result.outcome === 'accepted') {
-                localStorage.setItem(PWA_BANNER_INSTALLED_KEY, 'true');
+            // Odczytaj ponownie — mógł nadejść w międzyczasie
+            const prompt = window.__pwa_deferred_prompt;
+            if (prompt) {
+                prompt.prompt();
+                const result = await prompt.userChoice;
+                console.log('[PWA] Install prompt result:', result.outcome);
+                if (result.outcome === 'accepted') {
+                    localStorage.setItem(PWA_BANNER_INSTALLED_KEY, 'true');
+                }
+                window.__pwa_deferred_prompt = null;
+                removeBanner();
+            } else {
+                // Fallback: jeśli prompt nie jest dostępny, pokaż instrukcję
+                console.warn('[PWA] deferredPrompt niedostępny — brak wsparcia przeglądarki lub instalacja już aktywna');
+                const bannerContent = banner.querySelector('.pwa-banner-text');
+                if (bannerContent) {
+                    bannerContent.innerHTML = '<strong>Aby zainstalować:</strong> otwórz menu przeglądarki (⋮) i wybierz „Dodaj do ekranu głównego" lub „Zainstaluj aplikację".';
+                }
             }
-            deferredPrompt = null;
-            removeBanner();
         });
     }
 }

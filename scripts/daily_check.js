@@ -82,7 +82,7 @@ async function runDailyCheck() {
 
             // Jeśli pozostało <= threshold dni i powiadomienie nie zostało jeszcze wysłane
             if (daysLeft <= daysThreshold && daysLeft >= 0 && !alertFlags[flagKey]) {
-                console.log(`[DailyCheck] Alert dla "${reminder.title}": pozostało ${daysLeft} dni (proóg ${daysThreshold} dni).`);
+                console.log(`[DailyCheck] Alert dla "${reminder.title}": pozostało ${daysLeft} dni (próg ${daysThreshold} dni).`);
 
                 // Utwórz powiadomienie e-mail w kolekcji /mail (Trigger Email Extension)
                 const payload = buildMailPayload({

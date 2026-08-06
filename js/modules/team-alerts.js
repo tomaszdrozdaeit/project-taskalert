@@ -76,7 +76,18 @@ export function render() {
             <p class="page-subtitle">Współdzielone alerty i zadania — zarządzaj alertami swojego zespołu</p>
         </div>
 
-        <div class="filter-bar animate-in">
+        <div class="filter-bar-compact animate-in">
+            <button class="filter-toggle-btn" id="filter-toggle-team" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Szukaj i filtruj
+            </button>
+            <button class="btn btn-primary" id="add-team-alert-btn-compact" style="white-space:nowrap;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>Nowy</span>
+            </button>
+        </div>
+
+        <div class="filter-bar animate-in" id="filter-bar-team">
             <div class="search-input-wrapper">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="team-search" placeholder="Szukaj po nazwie, kategorii, osobie...">
@@ -117,6 +128,7 @@ export function init() {
     const searchInput = document.getElementById('team-search');
     const statusFilter = document.getElementById('team-status-filter');
     const addBtn = document.getElementById('add-team-alert-btn');
+    const addBtnCompact = document.getElementById('add-team-alert-btn-compact');
 
     let allAlerts = [];
 
@@ -132,6 +144,17 @@ export function init() {
     }
 
     if (addBtn) addBtn.addEventListener('click', () => showAddTeamAlertModal());
+    if (addBtnCompact) addBtnCompact.addEventListener('click', () => showAddTeamAlertModal());
+
+    // Mobile filter toggle
+    const filterToggle = document.getElementById('filter-toggle-team');
+    const filterBar = document.getElementById('filter-bar-team');
+    if (filterToggle && filterBar) {
+        filterToggle.addEventListener('click', () => {
+            filterBar.classList.toggle('filter-bar-expanded');
+            filterToggle.classList.toggle('active');
+        });
+    }
 
     const renderFiltered = () => {
         const query = (searchInput?.value || '').trim().toLowerCase();
@@ -141,8 +164,9 @@ export function init() {
         let filtered = allAlerts;
 
         if (currentTab !== 'all') {
+            const userEmail = currentUser?.email?.toLowerCase() || '';
             filtered = filtered.filter(a => {
-                const p = (a.participants || []).find(p => p.uid === uid);
+                const p = (a.participants || []).find(p => p.uid === uid || (p.email || '').toLowerCase() === userEmail);
                 return p && p.role === currentTab;
             });
         }
@@ -204,13 +228,14 @@ function renderAlertsList(alerts, totalCount) {
     }
 
     const uid = currentUser?.uid;
+    const userEmail = currentUser?.email?.toLowerCase() || '';
 
     container.innerHTML = alerts.map(alert => {
         const days = daysUntil(alert.expiryDate);
         const status = getStatusClass(days);
         const countdown = getCountdownText(days);
         const countdownCls = getCountdownClass(days);
-        const myRole = (alert.participants || []).find(p => p.uid === uid)?.role || 'executor';
+        const myRole = (alert.participants || []).find(p => p.uid === uid || (p.email || '').toLowerCase() === userEmail)?.role || 'executor';
         const roleInfo = ROLE_BADGES[myRole] || ROLE_BADGES.executor;
 
         const participantsChips = (alert.participants || []).slice(0, 4).map(p => {
@@ -425,7 +450,8 @@ async function showTeamAlertDetails(alertId) {
     const countdownCls = getCountdownClass(days);
     const countdownText = getCountdownText(days);
     const uid = currentUser?.uid;
-    const myRole = (alert.participants || []).find(p => p.uid === uid)?.role || 'executor';
+    const userEmail = currentUser?.email?.toLowerCase() || '';
+    const myRole = (alert.participants || []).find(p => p.uid === uid || (p.email || '').toLowerCase() === userEmail)?.role || 'executor';
     const canEdit = myRole === 'owner' || myRole === 'observer';
     const canDelete = myRole === 'owner';
 

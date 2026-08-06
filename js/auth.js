@@ -98,6 +98,7 @@ export async function ensureUserProfile(user) {
 
         if (!allowedSnap.exists()) {
             await setDoc(allowedRef, {
+                uid: user.uid,
                 email: currentEmail,
                 name: user.displayName || currentEmail.split('@')[0],
                 role: currentEmail === SUPER_ADMIN_EMAIL.toLowerCase() ? 'super-admin' : 'user',
@@ -107,6 +108,7 @@ export async function ensureUserProfile(user) {
             });
         } else {
             const updatePayload = {
+                uid: user.uid,
                 name: user.displayName || allowedSnap.data()?.name || currentEmail.split('@')[0],
                 lastLoginAt: serverTimestamp()
             };
