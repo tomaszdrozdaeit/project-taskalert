@@ -11,9 +11,10 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
 - **`v4.1-dev` (Środowisko Deweloperskie):**
   - Aktywna gałąź zawierająca pełny pakiet poprawek z `uwagi_v3.md`:
     - Naprawa race condition przycisku instalacji PWA (`window.__pwa_deferred_prompt`).
-    - Nowoczesny, kolapsowalny pasek wyszukiwania i filtrów (`.filter-bar-compact`, toggle lupy) na smartfonach.
-    - Całkowicie elastyczne karty alertów (`.reminder-card` z `flex-wrap` i kompaktowym układem przycisków na mobile).
-    - Podbicie wersji Service Workera do `taskalert-v26`.
+    - Cache Busting v27: Wersjonowanie `css/style.css?v=27` oraz `js/app.js?v=27` w `index.html` zapobiegające serwowaniu starego pliku stylów przez przeglądarkę mobilną.
+    - Nowoczesny UI/UX przycisku lupy 🔍 umieszczonego bezpośrednio w nagłówku podstron (`.page-header-flex`), pozwalającego wysuwać i zwijać panel filtrów.
+    - Całkowicie elastyczne karty alertów (`.reminder-card` z `flex-wrap` i kompaktowym układem przycisków akcji na mobile).
+    - Podbicie wersji Service Workera do `taskalert-v27`.
 
 ---
 

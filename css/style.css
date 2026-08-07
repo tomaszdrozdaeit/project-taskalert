@@ -1674,8 +1674,48 @@ img {
 }
 
 /* ============================================================
-   COLLAPSIBLE FILTER BAR (Mobile Toggle)
+   COLLAPSIBLE FILTER BAR & HEADER ACTIONS
    ============================================================ */
+.page-header-flex {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.page-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border-color);
+    background: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.icon-btn-action:hover, .icon-btn-action.active {
+    background: var(--accent-primary-bg);
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.icon-btn-action svg {
+    width: 18px;
+    height: 18px;
+}
+
 .filter-bar-compact {
     display: none; /* Ukryty na desktop */
 }

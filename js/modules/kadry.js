@@ -12,20 +12,20 @@ let allReminders = [];
 
 export function render() {
     return `
-        <div class="page-header animate-in">
-            <h1 class="page-title">${ICON} ${CATEGORY_NAME}</h1>
-            <p class="page-subtitle">Badania lekarskie, szkolenia BHP i inne terminy pracownicze</p>
-        </div>
-
-        <div class="filter-bar-compact animate-in">
-            <button class="filter-toggle-btn" id="filter-toggle-kadry" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Szukaj i filtruj
-            </button>
-            <button class="btn btn-primary" onclick="window.showAddReminderModal('Kadry')" style="white-space:nowrap;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Dodaj</span>
-            </button>
+        <div class="page-header page-header-flex animate-in">
+            <div>
+                <h1 class="page-title">${ICON} ${CATEGORY_NAME}</h1>
+                <p class="page-subtitle">Badania lekarskie, szkolenia BHP i inne terminy pracownicze</p>
+            </div>
+            <div class="page-header-actions">
+                <button class="icon-btn-action" id="filter-toggle-kadry" title="Szukaj i filtruj" aria-label="Szukaj i filtruj" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+                <button class="btn btn-primary" onclick="window.showAddReminderModal('Kadry')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Dodaj</span>
+                </button>
+            </div>
         </div>
 
         <div class="filter-bar animate-in" id="filter-bar-kadry">
@@ -46,10 +46,6 @@ export function render() {
                 <option value="bhp">Szkolenie BHP</option>
                 <option value="custom">Inne</option>
             </select>
-            <button class="btn btn-primary" onclick="window.showAddReminderModal('Kadry')">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Dodaj</span>
-            </button>
         </div>
 
         <div class="reminder-list" id="reminders-list-kadry">

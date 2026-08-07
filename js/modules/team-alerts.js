@@ -71,20 +71,20 @@ function getStatusKey(days) {
 
 export function render() {
     return `
-        <div class="page-header animate-in">
-            <h1 class="page-title">👥 Alerty zespołowe</h1>
-            <p class="page-subtitle">Współdzielone alerty i zadania — zarządzaj alertami swojego zespołu</p>
-        </div>
-
-        <div class="filter-bar-compact animate-in">
-            <button class="filter-toggle-btn" id="filter-toggle-team" type="button">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Szukaj i filtruj
-            </button>
-            <button class="btn btn-primary" id="add-team-alert-btn-compact" style="white-space:nowrap;">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Nowy</span>
-            </button>
+        <div class="page-header page-header-flex animate-in">
+            <div>
+                <h1 class="page-title">👥 Alerty zespołowe</h1>
+                <p class="page-subtitle">Współdzielone alerty i zadania — zarządzaj alertami swojego zespołu</p>
+            </div>
+            <div class="page-header-actions">
+                <button class="icon-btn-action" id="filter-toggle-team" title="Szukaj i filtruj" aria-label="Szukaj i filtruj" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+                <button class="btn btn-primary" id="add-team-alert-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Nowy alert zespołowy</span>
+                </button>
+            </div>
         </div>
 
         <div class="filter-bar animate-in" id="filter-bar-team">
@@ -99,10 +99,6 @@ export function render() {
                 <option value="warning">🟡 Do 30 dni</option>
                 <option value="ok">🟢 Powyżej 30 dni</option>
             </select>
-            <button class="btn btn-primary" id="add-team-alert-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Nowy alert zespołowy</span>
-            </button>
         </div>
 
         <div class="card animate-in" style="margin-bottom:20px;">
@@ -128,7 +124,6 @@ export function init() {
     const searchInput = document.getElementById('team-search');
     const statusFilter = document.getElementById('team-status-filter');
     const addBtn = document.getElementById('add-team-alert-btn');
-    const addBtnCompact = document.getElementById('add-team-alert-btn-compact');
 
     let allAlerts = [];
 
@@ -144,7 +139,6 @@ export function init() {
     }
 
     if (addBtn) addBtn.addEventListener('click', () => showAddTeamAlertModal());
-    if (addBtnCompact) addBtnCompact.addEventListener('click', () => showAddTeamAlertModal());
 
     // Mobile filter toggle
     const filterToggle = document.getElementById('filter-toggle-team');
