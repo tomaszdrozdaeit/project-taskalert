@@ -55,7 +55,9 @@ export async function requestPushPermission() {
 
     const { getToken } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js');
 
-    const swRegistration = await navigator.serviceWorker.getRegistration();
+    const swRegistration = ('serviceWorker' in navigator)
+        ? await navigator.serviceWorker.ready
+        : await navigator.serviceWorker.getRegistration();
     const token = await getToken(msg, {
         vapidKey: VAPID_KEY,
         serviceWorkerRegistration: swRegistration
@@ -68,6 +70,40 @@ export async function requestPushPermission() {
     console.log('[Push] Token FCM zarejestrowany:', token.substring(0, 20) + '...');
 
     return token;
+}
+
+// Bezpieczne wyświetlanie powiadomień — kompatybilne z Androidem (SW) i Desktopem
+async function displayNotification(title, options = {}) {
+    if (Notification.permission !== 'granted') {
+        throw new Error('Brak uprawnień do wyświetlania powiadomień.');
+    }
+
+    // 1. Spróbuj wyświetlić przez Service Worker (wymagane na Android Chrome / WebViews)
+    if ('serviceWorker' in navigator) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            if (registration && typeof registration.showNotification === 'function') {
+                await registration.showNotification(title, options);
+                return;
+            }
+        } catch (swErr) {
+            console.warn('[Push] registration.showNotification nie powiodło się, próba użycia konstruktora Notification:', swErr);
+        }
+    }
+
+    // 2. Fallback dla desktopów gdy SW jest niedostępny lub nie gotowy
+    try {
+        const notification = new Notification(title, options);
+        if (options.onClick) {
+            notification.addEventListener('click', options.onClick);
+        }
+        if (!options.requireInteraction) {
+            setTimeout(() => notification.close(), 8000);
+        }
+    } catch (err) {
+        console.error('[Push] Nie udało się utworzyć powiadomienia (błąd konstruktora Notification):', err);
+        throw err;
+    }
 }
 
 // Zapisz token FCM w Firestore
@@ -121,7 +157,7 @@ export async function setupForegroundHandler() {
 
     const { onMessage } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js');
 
-    onMessage(msg, (payload) => {
+    onMessage(msg, async (payload) => {
         console.log('[Push] Foreground message:', payload);
 
         const { title, body, data } = payload.notification || {};
@@ -138,25 +174,22 @@ export async function setupForegroundHandler() {
 
         // Opcjonalnie pokaż natywne powiadomienie
         if (Notification.permission === 'granted') {
-            const notification = new Notification(title || 'TaskAlert', {
-                body: body || '',
-                icon: './icons/icon-192.png',
-                badge: './icons/icon-192.png',
-                tag: alertId || 'taskalert-notification',
-                data: { alertId, url: payload.data?.url },
-                actions: [
-                    { action: 'snooze5', title: '⏰ Drzemka 5 min' },
-                    { action: 'snooze10', title: '⏰ Drzemka 10 min' },
-                    { action: 'dismiss', title: '🔕 Wyłącz alert' }
-                ]
-            });
-
-            notification.addEventListener('click', () => {
-                window.focus();
-                if (alertId) {
-                    window.TaskAlert.showReminderDetailsModal(alertId);
-                }
-            });
+            try {
+                await displayNotification(title || 'TaskAlert', {
+                    body: body || '',
+                    icon: './icons/icon-192.png',
+                    badge: './icons/icon-192.png',
+                    tag: alertId || 'taskalert-notification',
+                    data: { alertId, url: payload.data?.url },
+                    actions: [
+                        { action: 'snooze5', title: '⏰ Drzemka 5 min' },
+                        { action: 'snooze10', title: '⏰ Drzemka 10 min' },
+                        { action: 'dismiss', title: '🔕 Wyłącz alert' }
+                    ]
+                });
+            } catch (e) {
+                console.warn('[Push] Nie udało się wyświetlić powiadomienia w foreground:', e);
+            }
         }
     });
 }
@@ -167,20 +200,14 @@ export async function sendTestPushNotification() {
         throw new Error('Brak uprawnień do powiadomień. Włącz je najpierw.');
     }
 
-    const notification = new Notification('🔔 TaskAlert — Test', {
+    await displayNotification('🔔 TaskAlert — Test', {
         body: 'To jest testowe powiadomienie push. Jeśli je widzisz — wszystko działa poprawnie!',
         icon: './icons/icon-192.png',
         badge: './icons/icon-192.png',
         tag: 'taskalert-test',
-        requireInteraction: true
+        requireInteraction: true,
+        data: { url: './' }
     });
-
-    notification.addEventListener('click', () => {
-        window.focus();
-        notification.close();
-    });
-
-    setTimeout(() => notification.close(), 8000);
 }
 
 // Wycisz powiadomienia push dla konkretnego alertu

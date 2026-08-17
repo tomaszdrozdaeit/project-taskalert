@@ -57,8 +57,11 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Zabezpieczono `.main-content` przed poziomym suwakiem (`overflow-x: hidden`).
 4. **Alerty Zespołowe i Filtrowanie po Email:**
    - Dodano automatyczną synchronizację `uid` użytkownika do `allowedUsers` oraz fallback po adresie e-mail w zapytaniach do alertów zespołowych.
-5. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v26` w `service-worker.js`.
+ 5. **Poprawka Powiadomień PUSH na Androidzie (Android Chrome / PWA Fix):**
+   - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
+   - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
+ 6. **Wersjonowanie Cache Service Workera:**
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v28` w `service-worker.js` oraz podbito wersje w `index.html` (`v=28`).
 
 ---
 
