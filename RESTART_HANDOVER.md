@@ -61,7 +61,9 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v28` w `service-worker.js` oraz podbito wersje w `index.html` (`v=28`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v29` w `service-worker.js` oraz podbito wersje w `index.html` (`v=29`).
+ 7. **Konwersja Alertów Prywatnych na Zespołowe:**
+   - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
 
 ---
 
