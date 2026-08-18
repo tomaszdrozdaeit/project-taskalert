@@ -196,6 +196,7 @@ function renderList() {
                 <div class="reminder-title">${escHtml(r.title)}</div>
                 <div class="reminder-meta">
                     <span class="category-badge" style="background:rgba(79,140,255,0.1);color:#4f8cff">${escHtml(r.subTypeLabel || r.subType)}</span>
+                    ${r.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed">👥 Zespołowy</span>` : ''}
                     <span>📅 ${formatDate(r.expiryDate)}</span>
                     ${alertChips}
                 </div>
@@ -335,133 +336,9 @@ function buildEmailOpts(allowedUsers = [], currentEmail = '') {
 }
 
 window.handleEdit = async (id) => {
-    const reminder = allReminders.find(r => r.id === id);
-    if (!reminder) return;
-
-    const { getCategories, getAllowedUsers } = await import('../db.js');
-    const categories = await getCategories();
-    const allowedUsers = await getAllowedUsers();
-    const expDate = reminder.expiryDate?.toDate ? reminder.expiryDate.toDate() : new Date(reminder.expiryDate);
-    const expStr = expDate.toISOString().split('T')[0];
-
-    const catOptions = categories.map(c =>
-        `<option value="${c.id}" ${reminder.categoryId === c.id ? 'selected' : ''}>${escHtml(c.icon || '📋')} ${escHtml(c.name)}</option>`
-    ).join('');
-
-    const alertChipsHtml = (reminder.alertDays || []).map(d =>
-        `<span class="alert-chip" data-days="${d}">${d} dni <button class="chip-remove" type="button">×</button></span>`
-    ).join('');
-
-    window.TaskAlert.showModal({
-        title: 'Edytuj przypomnienie',
-        body: `
-            <div class="form-group">
-                <label for="edit-title">Tytuł *</label>
-                <input type="text" id="edit-title" value="${escHtml(reminder.title)}" required>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="edit-category">Kategoria</label>
-                    <select id="edit-category" class="filter-select w-full">${catOptions}</select>
-                </div>
-                <div class="form-group">
-                    <label for="edit-subtype">Podtyp</label>
-                    <input type="text" id="edit-subtype" value="${escHtml(reminder.subTypeLabel || reminder.subType)}">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="edit-expiry">Data wygaśnięcia *</label>
-                    <input type="date" id="edit-expiry" value="${expStr}" required>
-                </div>
-                <div class="form-group">
-                    <label for="edit-recurrence">Interwał (miesiące)</label>
-                    <input type="number" id="edit-recurrence" value="${reminder.recurrenceMonths || 0}" min="0">
-                </div>
-            </div>
-            <div class="form-group">
-                <label>Alerty (dni przed terminem)</label>
-                <div class="alert-chips" id="edit-alert-chips">
-                    ${alertChipsHtml}
-                    <button class="alert-chip-add" type="button" id="edit-alert-chip-btn">+ Dodaj alert</button>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="edit-email1">E-mail główny</label>
-                    <select id="edit-email1" class="filter-select w-full">
-                        ${buildEmailOpts(allowedUsers, reminder.primaryEmail)}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label for="edit-email2">E-mail dodatkowy</label>
-                    <select id="edit-email2" class="filter-select w-full">
-                        ${buildEmailOpts(allowedUsers, reminder.secondaryEmail)}
-                    </select>
-                </div>
-            </div>
-            <div class="form-group">
-                <label for="edit-notes">Notatki</label>
-                <textarea id="edit-notes">${escHtml(reminder.notes)}</textarea>
-            </div>`,
-        footer: `
-            <button class="btn btn-secondary" onclick="window.TaskAlert.closeModal()">Anuluj</button>
-            <button class="btn btn-primary" id="edit-save-btn">Zapisz zmiany</button>`,
-        onOpen: (body, footer) => {
-            // Alert chip management
-            const chipsContainer = body.querySelector('#edit-alert-chips');
-            body.querySelector('#edit-alert-chip-btn').addEventListener('click', () => {
-                const days = prompt('Ile dni przed terminem wysłać alert?');
-                if (days && !isNaN(days) && parseInt(days) > 0) {
-                    const chip = document.createElement('span');
-                    chip.className = 'alert-chip';
-                    chip.dataset.days = parseInt(days);
-                    chip.innerHTML = `${parseInt(days)} dni <button class="chip-remove" type="button">×</button>`;
-                    chipsContainer.insertBefore(chip, body.querySelector('#edit-alert-chip-btn'));
-                }
-            });
-            chipsContainer.addEventListener('click', (e) => {
-                if (e.target.classList.contains('chip-remove')) e.target.closest('.alert-chip').remove();
-            });
-
-            // Save
-            footer.querySelector('#edit-save-btn').addEventListener('click', async () => {
-                const title = body.querySelector('#edit-title').value.trim();
-                const expiry = body.querySelector('#edit-expiry').value;
-                if (!title || !expiry) { window.TaskAlert.showToast('Uzupełnij wymagane pola.', 'warning'); return; }
-
-                const chips = chipsContainer.querySelectorAll('.alert-chip');
-                const alertDays = Array.from(chips).map(c => parseInt(c.dataset.days)).filter(d => d > 0);
-                alertDays.sort((a, b) => b - a);
-
-                const cat = categories.find(c => c.id === body.querySelector('#edit-category').value);
-
-                const saveBtn = footer.querySelector('#edit-save-btn');
-                saveBtn.classList.add('loading');
-
-                try {
-                    await updateReminder(id, {
-                        title,
-                        categoryId: body.querySelector('#edit-category').value,
-                        categoryName: cat?.name || '',
-                        subTypeLabel: body.querySelector('#edit-subtype').value.trim(),
-                        expiryDate: new Date(expiry),
-                        recurrenceMonths: parseInt(body.querySelector('#edit-recurrence').value) || 0,
-                        alertDays,
-                        primaryEmail: body.querySelector('#edit-email1').value.trim(),
-                        secondaryEmail: body.querySelector('#edit-email2').value.trim(),
-                        notes: body.querySelector('#edit-notes').value.trim()
-                    });
-                    window.TaskAlert.showToast('Zmiany zapisane.', 'success');
-                    window.TaskAlert.closeModal();
-                } catch (err) {
-                    window.TaskAlert.showToast('Błąd: ' + err.message, 'error');
-                } finally {
-                    saveBtn.classList.remove('loading');
-                }
-            });
-        }
-    });
+    if (window.showReminderDetailsModal) {
+        window.showReminderDetailsModal(id);
+    }
 };
 
 window.handleSendNotification = async (id) => {

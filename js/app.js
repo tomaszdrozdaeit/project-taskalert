@@ -679,7 +679,7 @@ export function getCountdownClass(days) {
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================
 export async function showReminderDetailsModal(reminderId, reminderData) {
-    const { getReminder, getCategories, getAllowedUsers, parseDate, updateReminder, deleteReminder, sendManualNotification } = await import('./db.js');
+    const { getReminder, getCategories, getAllowedUsers, parseDate, updateReminder, deleteReminder, sendManualNotification, convertReminderToTeamAlert } = await import('./db.js');
 
     let reminder = reminderData || await getReminder(reminderId);
     if (!reminder) {
@@ -706,6 +706,12 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
         : '';
 
     const sharedBadge = reminder.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed;font-size:0.85rem;margin-left:8px;">👥 Alert Zespołowy</span>` : '';
+    const convertHeaderBtn = !reminder.isShared ? `
+        <button class="btn btn-sm btn-secondary" id="convert-to-team-header-btn" type="button" style="border-color:#7c3aed;color:#7c3aed;font-weight:600;display:inline-flex;align-items:center;gap:4px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+            <span>Zamień na zespołowy</span>
+        </button>` : '';
+
     const participantsHtml = reminder.isShared && reminder.participants ? `
         <div style="margin-top:12px;padding:10px 12px;background:var(--bg-card-hover);border-radius:8px;">
             <div style="font-size:0.82rem;font-weight:700;margin-bottom:6px;">👥 Uczestnicy alertu zespołowego (${reminder.participants.length}):</div>
@@ -723,13 +729,16 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
         title: `📌 Szczegóły: ${reminder.title}`,
         wide: true,
         body: `
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--bg-card-hover);">
-                <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 16px;border-radius:10px;background:var(--bg-card-hover);flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                     <span class="category-badge" style="font-size:0.85rem;">${escHtml(reminder.categoryName || 'Inne')}</span>
-                    <span style="font-size:0.85rem;color:var(--text-muted);margin-left:8px;">${escHtml(reminder.subTypeLabel || reminder.subType || '')}</span>
+                    <span style="font-size:0.85rem;color:var(--text-muted);margin-left:4px;">${escHtml(reminder.subTypeLabel || reminder.subType || '')}</span>
                     ${sharedBadge}
                 </div>
-                <div class="reminder-countdown countdown-${statusCls}">${countdownText}</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    ${convertHeaderBtn}
+                    <div class="reminder-countdown countdown-${statusCls}">${countdownText}</div>
+                </div>
             </div>
             ${participantsHtml}
 
@@ -807,6 +816,13 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 </div>
             </div>`,
         onOpen: (body, footer) => {
+            const convertHeaderBtnEl = body.querySelector('#convert-to-team-header-btn');
+            if (convertHeaderBtnEl) {
+                convertHeaderBtnEl.addEventListener('click', () => {
+                    closeModal();
+                    showConvertToTeamModal(reminder);
+                });
+            }
             const catSelect = body.querySelector('#edit-category');
             const subSelect = body.querySelector('#edit-subtype');
 
@@ -924,6 +940,160 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                     showToast('Błąd zapisu: ' + err.message, 'error');
                 } finally {
                     saveBtn.classList.remove('loading');
+                }
+            });
+        }
+    });
+}
+
+async function showConvertToTeamModal(reminder) {
+    const { getAllowedUsers, convertReminderToTeamAlert } = await import('./db.js');
+    const allowedUsers = await getAllowedUsers();
+    const uid = currentUser?.uid;
+    const currentEmail = currentUser?.email || '';
+    const currentName = currentUser?.displayName || currentEmail.split('@')[0] || '';
+
+    let selectedParticipants = [{
+        uid: uid || currentEmail,
+        email: currentEmail,
+        name: currentName,
+        role: 'owner'
+    }];
+
+    if (reminder.primaryEmail && reminder.primaryEmail.toLowerCase() !== currentEmail.toLowerCase()) {
+        const found = allowedUsers.find(u => u.email && u.email.toLowerCase() === reminder.primaryEmail.toLowerCase());
+        selectedParticipants.push({
+            uid: found?.id || reminder.primaryEmail,
+            email: reminder.primaryEmail,
+            name: found?.name || reminder.primaryEmail.split('@')[0],
+            role: 'executor'
+        });
+    }
+
+    if (reminder.secondaryEmail && reminder.secondaryEmail.toLowerCase() !== currentEmail.toLowerCase() && reminder.secondaryEmail.toLowerCase() !== reminder.primaryEmail?.toLowerCase()) {
+        const found = allowedUsers.find(u => u.email && u.email.toLowerCase() === reminder.secondaryEmail.toLowerCase());
+        selectedParticipants.push({
+            uid: found?.id || reminder.secondaryEmail,
+            email: reminder.secondaryEmail,
+            name: found?.name || reminder.secondaryEmail.split('@')[0],
+            role: 'observer'
+        });
+    }
+
+    const ROLE_BADGES = {
+        'owner':    { label: 'Właściciel', icon: '👑', color: '#f59e0b' },
+        'executor': { label: 'Wykonawca', icon: '🔧', color: '#4f8cff' },
+        'observer': { label: 'Obserwator', icon: '👁️', color: '#7c3aed' }
+    };
+
+    showModal({
+        title: `👥 Konwersja na Alert Zespołowy`,
+        wide: true,
+        body: `
+            <div style="padding:14px;background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.2);border-radius:10px;margin-bottom:16px;">
+                <div style="font-weight:700;color:#7c3aed;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                    <span>📌 Zamiana alertu: "${escHtml(reminder.title)}"</span>
+                </div>
+                <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">
+                    Przekształcenie tego alertu w alert zespołowy umożliwi jego współdzielenie z innymi osobami. 
+                    <strong>Wszystkie dotychczasowe szczegóły oraz pełna historia zdarzeń zostaną zachowane.</strong>
+                </p>
+            </div>
+
+            <div style="margin-top:16px;">
+                <h4 style="font-size:0.9rem;font-weight:700;margin-bottom:10px;">👥 Wybierz uczestników alertu zespołowego</h4>
+                <div id="convert-participants-list" style="margin-bottom:12px;"></div>
+
+                <div class="form-row" style="align-items:flex-end;">
+                    <div class="form-group" style="flex:2;">
+                        <label for="convert-add-user">Dodaj osobę z bazy</label>
+                        <select id="convert-add-user" class="filter-select w-full">
+                            <option value="">— Wybierz użytkownika —</option>
+                            ${allowedUsers.filter(u => u.isActive !== false && (u.email || '').toLowerCase() !== currentEmail.toLowerCase()).map(u =>
+                                `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.id || u.email)}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)} (${escHtml(u.email)})</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label for="convert-add-role">Rola</label>
+                        <select id="convert-add-role" class="filter-select w-full">
+                            <option value="executor">🔧 Wykonawca</option>
+                            <option value="observer">👁️ Obserwator</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary" id="convert-add-participant-btn" type="button" style="height:42px;">Dodaj</button>
+                </div>
+            </div>`,
+        footer: `
+            <button class="btn btn-secondary" id="convert-cancel-btn" type="button">Anuluj</button>
+            <button class="btn btn-primary" id="convert-submit-btn" type="button" style="background:#7c3aed;border-color:#7c3aed;">👥 Konwertuj na alert zespołowy</button>`,
+        onOpen: (body, footer) => {
+            const listEl = body.querySelector('#convert-participants-list');
+
+            const renderList = () => {
+                listEl.innerHTML = selectedParticipants.map(p => {
+                    const roleInfo = ROLE_BADGES[p.role] || ROLE_BADGES.executor;
+                    const isMe = (p.email || '').toLowerCase() === currentEmail.toLowerCase();
+                    return `
+                        <div class="participant-row" style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-card-hover);border-radius:8px;margin-bottom:6px;">
+                            <span style="flex:1;font-size:0.88rem;font-weight:500;">${escHtml(p.name || p.email)} <span style="color:var(--text-muted);font-size:0.78rem;">(${escHtml(p.email)})</span></span>
+                            <span class="category-badge" style="background:${roleInfo.color}22;color:${roleInfo.color};font-size:0.75rem;padding:3px 8px;">${roleInfo.icon} ${roleInfo.label}</span>
+                            ${!isMe ? `<button class="chip-remove" type="button" data-email="${escHtml(p.email)}" style="cursor:pointer;border:none;background:none;font-size:1.1rem;color:var(--text-muted);">×</button>` : ''}
+                        </div>`;
+                }).join('');
+
+                listEl.querySelectorAll('.chip-remove').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const emailToRemove = btn.dataset.email.toLowerCase();
+                        selectedParticipants = selectedParticipants.filter(p => (p.email || '').toLowerCase() !== emailToRemove);
+                        renderList();
+                    });
+                });
+            };
+            renderList();
+
+            body.querySelector('#convert-add-participant-btn').addEventListener('click', () => {
+                const select = body.querySelector('#convert-add-user');
+                const roleSelect = body.querySelector('#convert-add-role');
+                const email = select.value.trim();
+                if (!email) { showToast('Wybierz użytkownika.', 'warning'); return; }
+
+                const option = select.options[select.selectedIndex];
+                const name = option.dataset.name || email.split('@')[0];
+                const pUid = option.dataset.uid || email;
+
+                if (selectedParticipants.some(p => (p.email || '').toLowerCase() === email.toLowerCase())) {
+                    showToast('Użytkownik jest już na liście.', 'warning');
+                    return;
+                }
+
+                selectedParticipants.push({
+                    uid: pUid,
+                    email: email,
+                    name: name,
+                    role: roleSelect.value
+                });
+                select.value = '';
+                renderList();
+            });
+
+            footer.querySelector('#convert-cancel-btn').addEventListener('click', () => {
+                closeModal();
+                showReminderDetailsModal(reminder.id, reminder);
+            });
+
+            footer.querySelector('#convert-submit-btn').addEventListener('click', async () => {
+                const submitBtn = footer.querySelector('#convert-submit-btn');
+                submitBtn.classList.add('loading');
+                try {
+                    await convertReminderToTeamAlert(reminder.id, selectedParticipants);
+                    showToast('Alert został pomyślnie zamieniony na alert zespołowy!', 'success');
+                    closeModal();
+                    refreshCurrentPage();
+                } catch (err) {
+                    showToast('Błąd konwersji: ' + err.message, 'error');
+                } finally {
+                    submitBtn.classList.remove('loading');
                 }
             });
         }

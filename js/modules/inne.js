@@ -206,6 +206,7 @@ function renderList() {
                 <div class="reminder-title">${escHtml(r.title)}</div>
                 <div class="reminder-meta">
                     <span class="category-badge">${escHtml(r.categoryName || 'Inne')}</span>
+                    ${r.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed">👥 Zespołowy</span>` : ''}
                     <span>📅 ${formatDate(r.expiryDate)}</span>
                 </div>
                 <div class="progress-bar"><div class="progress-bar-fill ${fillCls}" style="width:${pct}%"></div></div>

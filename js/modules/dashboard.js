@@ -203,6 +203,7 @@ async function updateDashboard(reminders) {
                         <div class="reminder-title">${escHtml(r.title)}</div>
                         <div class="reminder-meta">
                             <span class="category-badge" style="background: ${getCategoryColor(r.categoryName)}22; color: ${getCategoryColor(r.categoryName)}">${escHtml(r.categoryName || 'Inne')}</span>
+                            ${r.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed">👥 Zespołowy</span>` : ''}
                             <span>📅 ${formatDate(r.expiryDate)}</span>
                         </div>
                         <div class="progress-bar">

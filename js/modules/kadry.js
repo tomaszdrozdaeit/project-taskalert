@@ -158,6 +158,7 @@ function renderList() {
                 <div class="reminder-title">${escHtml(r.title)}</div>
                 <div class="reminder-meta">
                     <span class="category-badge" style="background:rgba(124,58,237,0.1);color:#7c3aed">${escHtml(r.subTypeLabel || r.subType)}</span>
+                    ${r.isShared ? `<span class="category-badge" style="background:#7c3aed22;color:#7c3aed">👥 Zespołowy</span>` : ''}
                     <span>📅 ${formatDate(r.expiryDate)}</span>
                     ${alertChips}
                 </div>

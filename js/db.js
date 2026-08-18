@@ -803,6 +803,96 @@ export async function addSharedAlert(data) {
     return docRef.id;
 }
 
+// Konwertuj przypomnienie prywatne na alert zespołowy
+export async function convertReminderToTeamAlert(reminderId, participants = []) {
+    const currentUid = uid();
+    if (!currentUid) throw new Error('Użytkownik nie jest zalogowany.');
+
+    // 1. Pobierz dokument z prywatnych przypomnień
+    const privateRef = userDoc('reminders', reminderId);
+    const snap = await getDoc(privateRef);
+    if (!snap.exists()) {
+        throw new Error('Przypomnienie prywatne nie zostało znalezione lub zostało już usunięte.');
+    }
+
+    const reminderData = snap.data();
+
+    // 2. Przygotuj listę uczestników
+    const currentEmail = (auth.currentUser?.email || '').trim().toLowerCase();
+    const currentName = String(auth.currentUser?.displayName || currentEmail.split('@')[0] || 'Właściciel').trim();
+
+    let cleanParticipants = [...(participants || [])].map(p => ({
+        uid: String(p.uid || p.email || '').trim(),
+        email: String(p.email || '').trim().toLowerCase(),
+        name: String(p.name || p.email || '').trim(),
+        role: String(p.role || 'executor').trim()
+    })).filter(p => p.email.length > 0);
+
+    const hasOwner = cleanParticipants.some(p => p.email === currentEmail && p.role === 'owner');
+    if (!hasOwner) {
+        cleanParticipants = cleanParticipants.filter(p => p.email !== currentEmail);
+        cleanParticipants.unshift({
+            uid: currentUid,
+            email: currentEmail,
+            name: currentName,
+            role: 'owner'
+        });
+    }
+
+    const participantUids = cleanParticipants.map(p => p.uid).filter(Boolean);
+
+    // 3. Zbuduj i zaktualizuj historię
+    const existingHistory = [...(reminderData.history || [])];
+    const conversionHistoryEntry = {
+        type: 'converted_to_team',
+        timestamp: Timestamp.now(),
+        note: 'Zmieniono typ alertu na zespołowy (współdzielony)',
+        byUid: currentUid,
+        byName: currentName
+    };
+    existingHistory.push(conversionHistoryEntry);
+
+    const executorEmail = cleanParticipants.find(p => p.role === 'executor')?.email || cleanParticipants[0]?.email || '';
+    const ownerEmail = cleanParticipants.find(p => p.role === 'owner')?.email || cleanParticipants[1]?.email || '';
+
+    // 4. Stwórz obiekt alertu zespołowego w sharedAlerts
+    const alertDays = reminderData.alertDays || [30, 14, 7, 3, 1];
+    const sharedAlertData = {
+        title: String(reminderData.title || '').trim(),
+        description: String(reminderData.description || reminderData.notes || '').trim(),
+        categoryId: String(reminderData.categoryId || '').trim(),
+        categoryName: String(reminderData.categoryName || '').trim(),
+        subType: String(reminderData.subType || 'custom').trim(),
+        subTypeLabel: String(reminderData.subTypeLabel || 'Niestandardowy').trim(),
+        primaryEmail: String(reminderData.primaryEmail || executorEmail).trim(),
+        secondaryEmail: String(reminderData.secondaryEmail || ownerEmail).trim(),
+        expiryDate: toFirestoreTimestamp(reminderData.expiryDate),
+        status: reminderData.status || 'active',
+        alertDays: alertDays,
+        alertFlags: reminderData.alertFlags || buildAlertFlags(alertDays),
+        lastExecutedAt: reminderData.lastExecutedAt ? toFirestoreTimestamp(reminderData.lastExecutedAt) : null,
+        nextExpiryDate: reminderData.nextExpiryDate ? toFirestoreTimestamp(reminderData.nextExpiryDate) : null,
+        recurrenceMonths: parseInt(reminderData.recurrenceMonths) || 0,
+        notes: String(reminderData.notes || reminderData.description || '').trim(),
+        createdBy: currentUid,
+        createdByName: currentName,
+        participants: cleanParticipants,
+        participantUids: participantUids,
+        history: existingHistory,
+        createdAt: reminderData.createdAt || serverTimestamp(),
+        updatedAt: serverTimestamp()
+    };
+
+    // 5. Zapisz w sharedAlerts
+    const sharedRef = collection(db, SHARED_ALERTS_COL);
+    const newDoc = await addDoc(sharedRef, sharedAlertData);
+
+    // 6. Usuń stary dokument z prywatnej kolekcji
+    await deleteDoc(privateRef);
+
+    return newDoc.id;
+}
+
 // Pobierz alerty współdzielone dla bieżącego użytkownika
 export async function getSharedAlerts(filterRole = null) {
     const alertsRef = collection(db, SHARED_ALERTS_COL);
