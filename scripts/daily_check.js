@@ -1,6 +1,6 @@
 // ============================================================
 // DAILY CHECK SCRIPT — GitHub Actions / Node.js
-// TaskAlert — Sprawdzanie terminów i generowanie powiadomień e-mail
+// TaskAlert — Sprawdzanie terminów, generowanie powiadomień E-MAIL oraz PUSH
 // ============================================================
 
 const admin = require('firebase-admin');
@@ -39,6 +39,53 @@ if (serviceAccountRaw) {
 
 const db = admin.firestore();
 
+// Helper do wysyłania FCM Web Push
+async function sendPushToTokens(tokens, { title, body, data = {} }) {
+    if (!tokens || tokens.length === 0) return 0;
+
+    const message = {
+        notification: {
+            title,
+            body
+        },
+        data: data || {},
+        webpush: {
+            notification: {
+                icon: './icons/icon-192.png',
+                badge: './icons/icon-192.png',
+                requireInteraction: true,
+                actions: [
+                    { action: 'snooze5', title: '⏰ 5 min' },
+                    { action: 'snooze10', title: '⏰ 10 min' },
+                    { action: 'dismiss', title: '🔕 Wyłącz' }
+                ]
+            },
+            fcmOptions: {
+                link: data.url || './'
+            }
+        }
+    };
+
+    let successful = 0;
+    for (const token of tokens) {
+        try {
+            await admin.messaging().send({ ...message, token });
+            successful++;
+        } catch (err) {
+            console.warn(`[DailyCheck] Błąd wysyłania push do tokenu ${token.substring(0, 15)}...:`, err.message);
+        }
+    }
+    return successful;
+}
+
+function formatDatePL(date) {
+    if (!date) return '—';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}.${month}.${year}`;
+}
+
 async function runDailyCheck() {
     const { buildMailPayload } = await loadMailUtils();
     console.log('[DailyCheck] Rozpoczynam dobową weryfikację terminów...');
@@ -46,12 +93,15 @@ async function runDailyCheck() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
 
-    // Pobierz aktywne przypomnienia bez konieczności tworzenia indeksu zbiorczego w Firestore
+    let emailSentCount = 0;
+    let pushSentCount = 0;
+
+    // ── 1. Sprawdź prywatne przypomnienia ──────────────────
     let reminderDocs = [];
     try {
         const snapshot = await db.collectionGroup('reminders').get();
         reminderDocs = snapshot.docs.filter(doc => doc.data().status === 'active');
-        console.log(`[DailyCheck] Znaleziono ${reminderDocs.length} aktywnych przypomnień (collectionGroup).`);
+        console.log(`[DailyCheck] Znaleziono ${reminderDocs.length} aktywnych przypomnień prywatnych.`);
     } catch (cgErr) {
         console.warn('[DailyCheck] collectionGroup niedostępny, przełączanie na pobieranie per-użytkownik:', cgErr.message);
         const usersSnap = await db.collection('users').get();
@@ -63,8 +113,6 @@ async function runDailyCheck() {
         console.log(`[DailyCheck] Znaleziono ${reminderDocs.length} aktywnych przypomnień (fallback).`);
     }
 
-    let sentCount = 0;
-
     for (const docSnap of reminderDocs) {
         const reminder = docSnap.data();
         const expiryDate = reminder.expiryDate ? reminder.expiryDate.toDate() : null;
@@ -73,18 +121,20 @@ async function runDailyCheck() {
         expiryDate.setHours(0, 0, 0, 0);
         const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
 
-        const alertDays = reminder.alertDays || [30, 14, 7, 3, 1];
-        const alertFlags = reminder.alertFlags || {};
+        // Sortuj progi malejąco [30, 14, 7, 3, 1]
+        const rawAlertDays = reminder.alertDays || [30, 14, 7, 3, 1];
+        const alertDays = [...rawAlertDays].sort((a, b) => b - a);
+        const alertFlags = { ...(reminder.alertFlags || {}) };
         let flagsUpdated = false;
 
         for (const daysThreshold of alertDays) {
             const flagKey = String(daysThreshold);
 
-            // Jeśli pozostało <= threshold dni i powiadomienie nie zostało jeszcze wysłane
+            // Jeśli pozostało <= threshold dni i powiadomienie dla tego progu nie zostało jeszcze wysłane
             if (daysLeft <= daysThreshold && daysLeft >= 0 && !alertFlags[flagKey]) {
                 console.log(`[DailyCheck] Alert dla "${reminder.title}": pozostało ${daysLeft} dni (próg ${daysThreshold} dni).`);
 
-                // Utwórz powiadomienie e-mail w kolekcji /mail (Trigger Email Extension)
+                // 1. Wyślij E-MAIL (jeden na dzień)
                 const payload = buildMailPayload({
                     ...reminder,
                     expiryDate: expiryDate
@@ -96,13 +146,49 @@ async function runDailyCheck() {
                 if (payload.to.length > 0) {
                     await db.collection('mail').add({
                         to: payload.to,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
                         message: payload.message
                     });
-                    sentCount++;
+                    emailSentCount++;
                 }
 
+                // 2. Wyślij PUSH do właściciela przypomnienia
+                try {
+                    const uid = docSnap.ref.parent?.parent?.id;
+                    if (uid) {
+                        const pushConfigSnap = await db.doc(`users/${uid}/settings/pushConfig`).get();
+                        if (pushConfigSnap.exists && pushConfigSnap.data().pushEnabled) {
+                            const pushConfig = pushConfigSnap.data();
+                            const fcmTokens = pushConfig.fcmTokens || [];
+                            const mutedAlerts = pushConfig.mutedAlerts || [];
+
+                            if (fcmTokens.length > 0 && !mutedAlerts.includes(docSnap.id)) {
+                                const pushSuccess = await sendPushToTokens(fcmTokens, {
+                                    title: `⏰ ${reminder.title}`,
+                                    body: daysLeft <= 0
+                                        ? `🔴 Termin minął dzisiaj (${formatDatePL(expiryDate)})!`
+                                        : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
+                                    data: { alertId: docSnap.id, url: './' }
+                                });
+                                pushSentCount += pushSuccess;
+                            }
+                        }
+                    }
+                } catch (pushErr) {
+                    console.warn(`[DailyCheck] Błąd push dla alertu ${docSnap.id}:`, pushErr.message);
+                }
+
+                // Oznacz bieżący próg oraz wszystkie wyższe progi jako obsłużone
                 alertFlags[flagKey] = true;
+                for (const higherThreshold of alertDays) {
+                    if (higherThreshold >= daysThreshold) {
+                        alertFlags[String(higherThreshold)] = true;
+                    }
+                }
                 flagsUpdated = true;
+
+                // ZATRZYMAJ PĘTLĘ — wysyłamy maksymalnie 1 powiadomienie per alert na dzień!
+                break;
             }
         }
 
@@ -111,7 +197,102 @@ async function runDailyCheck() {
         }
     }
 
-    console.log(`[DailyCheck] Zakończono weryfikację. Wysłano ${sentCount} powiadomień e-mail.`);
+    // ── 2. Sprawdź alerty zespołowe (sharedAlerts) ─────────
+    try {
+        const sharedSnap = await db.collection('sharedAlerts').get();
+        const activeShared = sharedSnap.docs.filter(doc => doc.data().status === 'active');
+        console.log(`[DailyCheck] Znaleziono ${activeShared.length} aktywnych alertów zespołowych.`);
+
+        for (const alertDoc of activeShared) {
+            const alert = alertDoc.data();
+            const expiryDate = alert.expiryDate ? alert.expiryDate.toDate() : null;
+            if (!expiryDate) continue;
+
+            expiryDate.setHours(0, 0, 0, 0);
+            const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+
+            const rawAlertDays = alert.alertDays || [30, 14, 7, 3, 1];
+            const alertDays = [...rawAlertDays].sort((a, b) => b - a);
+            const alertFlags = { ...(alert.alertFlags || {}) };
+            let flagsUpdated = false;
+
+            for (const daysThreshold of alertDays) {
+                const flagKey = String(daysThreshold);
+
+                if (daysLeft <= daysThreshold && daysLeft >= 0 && !alertFlags[flagKey]) {
+                    console.log(`[DailyCheck] Alert zespołowy "${alert.title}": pozostało ${daysLeft} dni (próg ${daysThreshold} dni).`);
+
+                    // 1. Wyślij E-MAIL do uczestników
+                    const participantEmails = (alert.participants || []).map(p => p.email).filter(Boolean);
+                    const emailRecipients = Array.from(new Set([
+                        alert.primaryEmail,
+                        alert.secondaryEmail,
+                        ...participantEmails
+                    ].filter(Boolean)));
+
+                    const payload = buildMailPayload({
+                        ...alert,
+                        expiryDate: expiryDate
+                    }, {
+                        subject: `👥 TaskAlert Zespołowy: Przypomnienie — ${alert.title} (za ${daysLeft} dni)`,
+                        recipients: emailRecipients
+                    });
+
+                    if (payload.to.length > 0) {
+                        await db.collection('mail').add({
+                            to: payload.to,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            message: payload.message
+                        });
+                        emailSentCount++;
+                    }
+
+                    // 2. Wyślij PUSH do wszystkich uczestników z włączonym push
+                    const participantUids = alert.participantUids || (alert.participants || []).map(p => p.uid).filter(Boolean);
+                    for (const pUid of participantUids) {
+                        try {
+                            const pushConfigSnap = await db.doc(`users/${pUid}/settings/pushConfig`).get();
+                            if (pushConfigSnap.exists && pushConfigSnap.data().pushEnabled) {
+                                const pushConfig = pushConfigSnap.data();
+                                const fcmTokens = pushConfig.fcmTokens || [];
+                                const mutedAlerts = pushConfig.mutedAlerts || [];
+
+                                if (fcmTokens.length > 0 && !mutedAlerts.includes(alertDoc.id)) {
+                                    const pushSuccess = await sendPushToTokens(fcmTokens, {
+                                        title: `👥 ${alert.title}`,
+                                        body: daysLeft <= 0
+                                            ? `🔴 Termin minął dzisiaj! (alert zespołowy)`
+                                            : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
+                                        data: { alertId: alertDoc.id, url: './#team-alerts' }
+                                    });
+                                    pushSentCount += pushSuccess;
+                                }
+                            }
+                        } catch (pErr) {
+                            console.warn(`[DailyCheck] Błąd push dla uczestnika ${pUid}:`, pErr.message);
+                        }
+                    }
+
+                    alertFlags[flagKey] = true;
+                    for (const higherThreshold of alertDays) {
+                        if (higherThreshold >= daysThreshold) {
+                            alertFlags[String(higherThreshold)] = true;
+                        }
+                    }
+                    flagsUpdated = true;
+                    break;
+                }
+            }
+
+            if (flagsUpdated) {
+                await alertDoc.ref.update({ alertFlags });
+            }
+        }
+    } catch (sharedErr) {
+        console.warn('[DailyCheck] Błąd weryfikacji alertów zespołowych:', sharedErr.message);
+    }
+
+    console.log(`[DailyCheck] Zakończono weryfikację. Wysłano ${emailSentCount} e-maili oraz ${pushSentCount} powiadomień PUSH.`);
 }
 
 runDailyCheck().catch(err => {
