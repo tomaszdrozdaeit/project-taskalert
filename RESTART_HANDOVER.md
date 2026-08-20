@@ -61,12 +61,15 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v30` w `service-worker.js` oraz podbito wersje w `index.html` (`v=30`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v31` w `service-worker.js` oraz podbito wersje w `index.html` (`v=31`).
  7. **Konwersja Alertów Prywatnych na Zespołowe:**
    - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
  8. **Baner PWA i Instrukcja dla iOS oraz Mac:**
    - Zaktualizowano `pwa-install-banner.js` z instrukcją instalacji na iOS (iOS 16.4+ Web Push wymaga dodania do Ekranu Głównego) oraz Mac (Safari Add to Dock / Chrome).
    - Dodano pełną instrukcję krok po kroku w `README.md`.
+ 9. **Rygorystyczna Ochrona Whitelist (Logowanie i Dostęp):**
+   - Zaktualizowano `auth.js` i `app.js`: Rejestracja, logowanie hasłem, Google Sign-in oraz stan sesji `onAuthChange` blokują każdego użytkownika spoza `allowedUsers`.
+   - Zaktualizowano `firestore.rules`: Reguły Firestore blokują odczyt i zapis w `/users/{uid}`, `/sharedAlerts`, `/categories` oraz `/mail` dla kont nieznajdujących się na whitelist.
 
 ---
 

@@ -42,14 +42,51 @@ beforeEach(async () => {
 
 describe('Firestore Security Rules', () => {
 
-    // ── 1. Izolacja danych użytkownika (/users/{uid}/*) ─────
-    test('Użytkownik MOŻE odczytać własne przypomnienia', async () => {
+    // ── 1. Izolacja danych i ochrona Whitelist (/users/{uid}/*) ──
+    test('Użytkownik na whitelist MOŻE odczytać własne przypomnienia', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await context.firestore().doc('allowedUsers/alice@firma.pl').set({
+                email: 'alice@firma.pl',
+                role: 'user',
+                isActive: true
+            });
+        });
+
         const alice = testEnv.authenticatedContext('alice_uid', { email: 'alice@firma.pl' });
         const ref = alice.firestore().doc('users/alice_uid/reminders/rem1');
         await assertSucceeds(ref.get());
     });
 
+    test('Obcy użytkownik (spoza whitelist) NIE MOŻE odczytać ani zapisać przypomnień', async () => {
+        const stranger = testEnv.authenticatedContext('stranger_uid', { email: 'obcy@hacker.pl' });
+        const ref = stranger.firestore().doc('users/stranger_uid/reminders/rem1');
+        await assertFails(ref.get());
+        await assertFails(ref.set({ title: 'Atak' }));
+    });
+
+    test('Zablokowany użytkownik (isActive: false) NIE MOŻE odczytać przypomnień', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await context.firestore().doc('allowedUsers/blocked@firma.pl').set({
+                email: 'blocked@firma.pl',
+                role: 'user',
+                isActive: false
+            });
+        });
+
+        const blockedUser = testEnv.authenticatedContext('blocked_uid', { email: 'blocked@firma.pl' });
+        const ref = blockedUser.firestore().doc('users/blocked_uid/reminders/rem1');
+        await assertFails(ref.get());
+    });
+
     test('Użytkownik NIE MOŻE odczytać przypomnień innego użytkownika', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await context.firestore().doc('allowedUsers/bob@firma.pl').set({
+                email: 'bob@firma.pl',
+                role: 'user',
+                isActive: true
+            });
+        });
+
         const bob = testEnv.authenticatedContext('bob_uid', { email: 'bob@firma.pl' });
         const ref = bob.firestore().doc('users/alice_uid/reminders/rem1');
         await assertFails(ref.get());
@@ -68,42 +105,45 @@ describe('Firestore Security Rules', () => {
         await assertSucceeds(ref.get());
     });
 
-    test('Użytkownik bez roli admin NIE MOŻE edytować allowedUsers', async () => {
-        // Pre-populuj zwykłego usera w allowedUsers
+    test('Użytkownik bez roli admin NIE MOŻE dodawać użytkowników do allowedUsers', async () => {
         await testEnv.withSecurityRulesDisabled(async (context) => {
             await context.firestore().doc('allowedUsers/user@firma.pl').set({
                 email: 'user@firma.pl',
-                role: 'user'
+                role: 'user',
+                isActive: true
             });
         });
 
         const userCtx = testEnv.authenticatedContext('user_uid', { email: 'user@firma.pl' });
         const ref = userCtx.firestore().doc('allowedUsers/newuser@firma.pl');
-        await assertFails(ref.set({ email: 'newuser@firma.pl', role: 'user' }));
+        await assertFails(ref.set({ email: 'newuser@firma.pl', role: 'user', isActive: true }));
     });
 
     test('Administrator MOŻE dodawać użytkowników do allowedUsers', async () => {
         await testEnv.withSecurityRulesDisabled(async (context) => {
             await context.firestore().doc('allowedUsers/admin@firma.pl').set({
                 email: 'admin@firma.pl',
-                role: 'admin'
+                role: 'admin',
+                isActive: true
             });
         });
 
         const adminCtx = testEnv.authenticatedContext('admin_uid', { email: 'admin@firma.pl' });
         const ref = adminCtx.firestore().doc('allowedUsers/newuser@firma.pl');
-        await assertSucceeds(ref.set({ email: 'newuser@firma.pl', role: 'user' }));
+        await assertSucceeds(ref.set({ email: 'newuser@firma.pl', role: 'user', isActive: true }));
     });
 
     test('Nikt NIE MOŻE usunąć konta super-admina', async () => {
         await testEnv.withSecurityRulesDisabled(async (context) => {
             await context.firestore().doc('allowedUsers/admin@firma.pl').set({
                 email: 'admin@firma.pl',
-                role: 'admin'
+                role: 'admin',
+                isActive: true
             });
             await context.firestore().doc('allowedUsers/tomasz.drozda.eit@gmail.com').set({
                 email: 'tomasz.drozda.eit@gmail.com',
-                role: 'super-admin'
+                role: 'super-admin',
+                isActive: true
             });
         });
 
@@ -113,13 +153,30 @@ describe('Firestore Security Rules', () => {
     });
 
     // ── 3. Alerty współdzielone (/sharedAlerts/{id}) ────────
-    test('Zalogowany użytkownik MOŻE utworzyć alert zespołowy', async () => {
+    test('Użytkownik na whitelist MOŻE utworzyć alert zespołowy', async () => {
+        await testEnv.withSecurityRulesDisabled(async (context) => {
+            await context.firestore().doc('allowedUsers/alice@firma.pl').set({
+                email: 'alice@firma.pl',
+                role: 'user',
+                isActive: true
+            });
+        });
+
         const alice = testEnv.authenticatedContext('alice_uid', { email: 'alice@firma.pl' });
         const ref = alice.firestore().collection('sharedAlerts').doc('alert1');
         await assertSucceeds(ref.set({
             title: 'Przegląd pojazdu',
             createdBy: 'alice_uid',
             participants: [{ uid: 'alice_uid', role: 'owner' }]
+        }));
+    });
+
+    test('Obcy użytkownik (spoza whitelist) NIE MOŻE tworzyć alertów zespołowych', async () => {
+        const stranger = testEnv.authenticatedContext('stranger_uid', { email: 'obcy@hacker.pl' });
+        const ref = stranger.firestore().collection('sharedAlerts').doc('alert1');
+        await assertFails(ref.set({
+            title: 'Atak alertów',
+            createdBy: 'stranger_uid'
         }));
     });
 

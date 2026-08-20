@@ -26,8 +26,8 @@ export let currentUser = null;
 // ── Super-admin e-mail (chroniony przed usunięciem) ─────
 export const SUPER_ADMIN_EMAIL = 'tomasz.drozda.eit@gmail.com';
 
-// ── Sprawdzenie czy e-mail jest na liście dozwolonych ───
-async function isUserAllowed(email) {
+// ── Sprawdzenie czy e-mail jest na liście dozwolonych (Strict Whitelist) ───
+export async function isUserAllowed(email) {
     if (!email) return false;
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -38,13 +38,16 @@ async function isUserAllowed(email) {
         const allowedRef = doc(db, 'allowedUsers', normalizedEmail);
         const snap = await getDoc(allowedRef);
         if (snap.exists()) {
-            return snap.data().isActive !== false; // Zablokowany tylko jeśli isActive === false
+            const data = snap.data();
+            // Dozwolony wyłącznie gdy konto istnieje na whitelist i isActive nie jest false
+            return data.isActive !== false;
         }
-        // Jeśli brak wpisu w allowedUsers (pierwsze logowanie konta) — zezwól i utwórz wpis w ensureUserProfile
-        return true;
+        // Brak wpisu w allowedUsers -> użytkownik NIE ma dostępu!
+        console.warn(`[Auth] Odmowa dostępu: adres ${normalizedEmail} nie znajduje się na liście dozwolonych.`);
+        return false;
     } catch (err) {
-        console.warn('[Auth] Błąd odczytu allowedUsers:', err);
-        return true;
+        console.error('[Auth] Błąd weryfikacji whitelist w allowedUsers:', err);
+        return false;
     }
 }
 
@@ -73,40 +76,37 @@ export async function ensureUserProfile(user) {
     if (!user || !user.email) return false;
     const currentEmail = user.email.trim().toLowerCase();
 
+    // Sprawdź czy użytkownik jest dozwolony
+    const allowed = await isUserAllowed(currentEmail);
+    if (!allowed) {
+        console.warn('[Auth] ensureUserProfile przerwane: użytkownik nieautoryzowany:', currentEmail);
+        return false;
+    }
+
     const profileRef = doc(db, 'users', user.uid, 'profile', 'main');
     const profileSnap = await getDoc(profileRef);
 
     if (!profileSnap.exists()) {
         await setDoc(profileRef, {
-            displayName: user.displayName || user.email.split('@')[0],
-            email: user.email,
-            defaultPrimaryEmail: user.email,
+            displayName: user.displayName || currentEmail.split('@')[0],
+            email: currentEmail,
+            defaultPrimaryEmail: currentEmail,
             defaultSecondaryEmail: '',
             defaultAlertDays: [30, 14, 7, 3, 1],
             createdAt: serverTimestamp(),
             lastLoginAt: serverTimestamp()
         });
-        console.log('[Auth] Nowy profil użytkownika utworzony w Firestore');
+        console.log('[Auth] Profil użytkownika utworzony w Firestore');
     } else {
         await setDoc(profileRef, { lastLoginAt: serverTimestamp() }, { merge: true });
     }
 
-    // Zsynchronizuj wpis użytkownika z kolekcją allowedUsers
+    // Zsynchronizuj wpis użytkownika z kolekcją allowedUsers (wyłącznie dla istniejących kont na whitelist)
     try {
         const allowedRef = doc(db, 'allowedUsers', currentEmail);
         const allowedSnap = await getDoc(allowedRef);
 
-        if (!allowedSnap.exists()) {
-            await setDoc(allowedRef, {
-                uid: user.uid,
-                email: currentEmail,
-                name: user.displayName || currentEmail.split('@')[0],
-                role: currentEmail === SUPER_ADMIN_EMAIL.toLowerCase() ? 'super-admin' : 'user',
-                isActive: true,
-                createdAt: serverTimestamp(),
-                lastLoginAt: serverTimestamp()
-            });
-        } else {
+        if (allowedSnap.exists()) {
             const updatePayload = {
                 uid: user.uid,
                 name: user.displayName || allowedSnap.data()?.name || currentEmail.split('@')[0],
@@ -117,9 +117,20 @@ export async function ensureUserProfile(user) {
                 updatePayload.isActive = true;
             }
             await setDoc(allowedRef, updatePayload, { merge: true });
+        } else if (currentEmail === SUPER_ADMIN_EMAIL.toLowerCase()) {
+            // Tylko super-admin może zainicjalizować swój dokument jeśli baza jest pusta
+            await setDoc(allowedRef, {
+                uid: user.uid,
+                email: currentEmail,
+                name: user.displayName || 'Tomasz Drozda',
+                role: 'super-admin',
+                isActive: true,
+                createdAt: serverTimestamp(),
+                lastLoginAt: serverTimestamp()
+            });
         }
     } catch (err) {
-        // Cichy fallback dla synchronizacji profilu
+        console.warn('[Auth] Błąd synchronizacji profilu w allowedUsers:', err);
     }
 
     return true;
@@ -132,7 +143,7 @@ export async function initAllowedUsers() {
         const snap = await getDoc(superAdminRef);
 
         if (!snap.exists()) {
-            console.log('[Auth] Dodaję super-admina do allowedUsers...');
+            console.log('[Auth] Inicjalizuję super-admina w allowedUsers...');
             await setDoc(superAdminRef, {
                 email: SUPER_ADMIN_EMAIL.toLowerCase(),
                 name: 'Tomasz Drozda',
@@ -141,38 +152,27 @@ export async function initAllowedUsers() {
                 createdAt: serverTimestamp()
             });
         }
-
-        if (currentUser) {
-            const currentEmail = currentUser.email.trim().toLowerCase();
-            const currentRef = doc(db, 'allowedUsers', currentEmail);
-            const currentSnap = await getDoc(currentRef);
-            if (!currentSnap.exists()) {
-                await setDoc(currentRef, {
-                    email: currentEmail,
-                    name: currentUser.displayName || currentEmail.split('@')[0],
-                    role: currentEmail === SUPER_ADMIN_EMAIL.toLowerCase() ? 'super-admin' : 'user',
-                    isActive: true,
-                    createdAt: serverTimestamp()
-                });
-            }
-        }
     } catch (err) {
-        // Cichy fallback inicjalizacji
+        console.warn('[Auth] Błąd initAllowedUsers:', err);
     }
 }
 
 // ── Rejestracja (Email + Hasło) ─────────────────────────
 export async function registerUser(email, password, displayName) {
-    const cred = await createUserWithEmailAndPassword(auth, email, password);
-    const allowed = await isUserAllowed(email);
+    if (!email) throw { code: 'auth/invalid-email', message: 'Podaj poprawny adres e-mail.' };
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Sprawdź czy adres jest na whitelist PRZED utworzeniem konta
+    const allowed = await isUserAllowed(normalizedEmail);
     if (!allowed) {
-        await signOut(auth);
         throw {
             code: 'auth/user-not-allowed',
-            message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
+            message: 'Rejestracja zablokowana: Twój adres e-mail nie znajduje się na liście autoryzowanych użytkowników (whitelist). Skontaktuj się z administratorem, aby dodał Twoje konto.'
         };
     }
 
+    // 2. Utwórz konto w Firebase Auth
+    const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
     await updateProfile(cred.user, { displayName });
     await ensureUserProfile(cred.user);
     return cred.user;
@@ -180,16 +180,19 @@ export async function registerUser(email, password, displayName) {
 
 // ── Logowanie (Email + Hasło) ───────────────────────────
 export async function loginUser(email, password) {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    const allowed = await isUserAllowed(email);
+    if (!email) throw { code: 'auth/invalid-email', message: 'Podaj poprawny adres e-mail.' };
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Sprawdź czy użytkownik jest dozwolony
+    const allowed = await isUserAllowed(normalizedEmail);
     if (!allowed) {
-        await signOut(auth);
         throw {
             code: 'auth/user-not-allowed',
-            message: 'Twoje konto nie jest autoryzowane. Skontaktuj się z administratorem systemu.'
+            message: 'Odmowa dostępu: Twój adres e-mail nie znajduje się na liście autoryzowanych użytkowników lub został zablokowany.'
         };
     }
 
+    const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
     await ensureUserProfile(cred.user);
     return cred.user;
 }
@@ -208,7 +211,7 @@ export async function loginWithGoogle() {
                 await signOut(auth);
                 throw {
                     code: 'auth/user-not-allowed',
-                    message: 'Twoje konto zostało zablokowane przez administratora.'
+                    message: 'Odmowa dostępu: Konto Google (' + cred.user.email + ') nie znajduje się na liście dozwolonych użytkowników systemu.'
                 };
             }
             await ensureUserProfile(cred.user);
@@ -231,7 +234,6 @@ export async function loginWithGoogle() {
 }
 
 // ── Obsługa powrotu z Google Redirect ──────────────────
-// Wywoływane raz przy ładowaniu modułu — obsługuje wynik po signInWithRedirect
 (async () => {
     try {
         const result = await getRedirectResult(auth);
@@ -240,6 +242,9 @@ export async function loginWithGoogle() {
             if (!allowed) {
                 await signOut(auth);
                 console.warn('[Auth] Konto po redirect nie jest autoryzowane:', result.user.email);
+                if (window.TaskAlert?.showToast) {
+                    window.TaskAlert.showToast('Odmowa dostępu: Konto Google (' + result.user.email + ') nie znajduje się na liście dozwolonych użytkowników.', 'error', { duration: 8000 });
+                }
             } else {
                 await ensureUserProfile(result.user);
                 console.log('[Auth] Zalogowano przez Google (redirect):', result.user.email);

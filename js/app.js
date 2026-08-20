@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole, ensureUserProfile, SUPER_ADMIN_EMAIL } from './auth.js';
+import { onAuthChange, loginUser, registerUser, resetPassword, logoutUser, currentUser, loginWithGoogle, initAllowedUsers, getUserRole, ensureUserProfile, isUserAllowed, SUPER_ADMIN_EMAIL } from './auth.js';
 import { initDefaultCategories, getCategories, getAllowedUsers } from './db.js';
 
 // ── Global PWA Install Prompt Capture ───────────────────
@@ -235,7 +235,18 @@ logoutBtn.addEventListener('click', async () => {
 // ============================================================
 onAuthChange(async (user) => {
     if (user) {
-        // Zalogowany
+        // Weryfikacja czy użytkownik znajduje się na liście dozwolonych (Strict Whitelist)
+        const allowed = await isUserAllowed(user.email);
+        if (!allowed) {
+            console.warn('[App] Zalogowany użytkownik nie znajduje się na liście dozwolonych:', user.email);
+            await logoutUser();
+            loginScreen.style.display = 'flex';
+            appWrapper.style.display  = 'none';
+            showToast(`Odmowa dostępu: Twój adres e-mail (${user.email}) nie znajduje się na liście uprawnionych użytkowników.`, 'error', { duration: 8000 });
+            return;
+        }
+
+        // Zalogowany i uprawniony
         loginScreen.style.display = 'none';
         appWrapper.style.display  = 'flex';
 

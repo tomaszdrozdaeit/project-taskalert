@@ -2,30 +2,63 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Profil użytkownika ──────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+        request.auth.token.email.lower() == 'tomasz.drozda.eit@gmail.com';
+    }
+
+    function isAllowedUser() {
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        (
+          exists(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower())) &&
+          get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower())).data.isActive != false
+        )
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        isSuperAdmin() ||
+        (
+          isAllowedUser() &&
+          get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email.lower())).data.role in ['admin', 'super-admin']
+        )
+      );
+    }
+
+    // ── Profil użytkownika & prywatne przypomnienia ─
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isAllowedUser() && request.auth.uid == userId;
     }
 
     // ── Kategorie (globalne) ────────────────────────
     match /categories/{document=**} {
-      allow read, write: if request.auth != null;
+      allow read: if isAllowedUser();
+      allow write: if isAllowedUser();
     }
 
     // ── Mail (Firebase Extension Trigger Email) ─────
     match /mail/{document=**} {
-      allow create: if request.auth != null;
+      allow create: if isAllowedUser();
       allow read, update, delete: if false;
     }
 
     // ── Allowed Users (Whitelist) ───────────────────
-    match /allowedUsers/{document=**} {
-      allow read, write: if request.auth != null;
+    match /allowedUsers/{email} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || (isAllowedUser() && request.auth.token.email.lower() == email.lower()) || isSuperAdmin();
+      allow delete: if isAdmin() && email.lower() != 'tomasz.drozda.eit@gmail.com';
     }
 
     // ── Shared Alerts (Alerty współdzielone) ────────
     match /sharedAlerts/{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isAllowedUser();
     }
   }
 }
+
