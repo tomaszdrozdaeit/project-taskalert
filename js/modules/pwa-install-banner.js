@@ -1,5 +1,5 @@
 // ============================================================
-// PWA INSTALL BANNER — Baner instalacji na urządzeniach mobilnych
+// PWA INSTALL BANNER — Baner instalacji na urządzeniach mobilnych i Mac
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
@@ -7,23 +7,25 @@ const PWA_BANNER_DISMISSED_KEY = 'taskalert-pwa-banner-dismissed';
 const PWA_BANNER_INSTALLED_KEY = 'taskalert-pwa-installed';
 
 // Wykryj platformę
-function getPlatform() {
+export function getPlatform() {
     const ua = navigator.userAgent || '';
     const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isAndroid = /Android/.test(ua);
+    const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/.test(ua) && navigator.maxTouchPoints <= 1;
+    const isSafari = /^((?!chrome|android).)*safari/i.test(ua);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches
         || window.navigator.standalone === true;
 
-    return { isIOS, isAndroid, isMobile: isIOS || isAndroid, isStandalone };
+    return { isIOS, isAndroid, isMac, isSafari, isMobile: isIOS || isAndroid, isStandalone };
 }
 
 export function showInstallBanner() {
-    const { isIOS, isAndroid, isMobile, isStandalone } = getPlatform();
+    const platform = getPlatform();
+    const { isIOS, isAndroid, isMac, isMobile, isStandalone } = platform;
 
     // Nie pokazuj banera jeśli:
-    // - Już zainstalowano
-    // - Już działa w trybie standalone
-    // - Baner był zamknięty (w ciągu 7 dni)
+    // - Już zainstalowano lub działa w trybie standalone
+    // - Baner był zamknięty w ciągu ostatnich 7 dni
     if (isStandalone) return;
     if (localStorage.getItem(PWA_BANNER_INSTALLED_KEY)) return;
 
@@ -36,15 +38,17 @@ export function showInstallBanner() {
     // Globalna zmienna przechwycona w app.js
     const deferredPrompt = window.__pwa_deferred_prompt || null;
 
-    // Na desktop bez Android prompt — nie pokazuj
-    if (!isMobile && !deferredPrompt) return;
+    // Na desktopie bez Maca i bez prompta instalacji nie pokazuj
+    if (!isMobile && !isMac && !deferredPrompt) return;
 
     setTimeout(() => {
-        createBanner(isIOS, isAndroid);
-    }, 2000); // Pokaż po 2s od zalogowania
+        createBanner(platform);
+    }, 1500); // Pokaż po 1.5s od załadowania
 }
 
-function createBanner(isIOS, isAndroid) {
+function createBanner(platform) {
+    const { isIOS, isAndroid, isMac, isSafari } = platform;
+
     // Usuń stary baner jeśli istnieje
     removeBanner();
 
@@ -52,7 +56,7 @@ function createBanner(isIOS, isAndroid) {
     banner.id = 'pwa-install-banner';
     banner.className = 'pwa-banner';
 
-    // Odczytaj globalny prompt (może się pojawić w międzyczasie)
+    // Odczytaj globalny prompt
     const deferredPrompt = window.__pwa_deferred_prompt || null;
 
     let instructionHtml = '';
@@ -61,27 +65,41 @@ function createBanner(isIOS, isAndroid) {
     if (isIOS) {
         instructionHtml = `
             <div class="pwa-banner-steps">
-                <p><strong>Zainstaluj TaskAlert na ekranie głównym:</strong></p>
+                <p><strong>Zainstaluj TaskAlert na ekranie głównym, aby włączyć powiadomienia PUSH:</strong></p>
                 <ol>
-                    <li>Kliknij ikonę <span class="pwa-share-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle;"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
-                    </span> <strong>Udostępnij</strong> na dole ekranu</li>
-                    <li>Przewiń w dół i wybierz <strong>"Dodaj do ekranu głównego"</strong></li>
-                    <li>Kliknij <strong>"Dodaj"</strong></li>
+                    <li>Stuknij ikonę <span class="pwa-share-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px;vertical-align:middle;margin:0 2px;"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                    </span> <strong>Udostępnij</strong> na dolnym pasku Safari</li>
+                    <li>Przewiń w dół i wybierz <strong>"Do ekranu początkowego"</strong> (lub "Dodaj do ekranu głównego")</li>
+                    <li>Stuknij <strong>"Dodaj"</strong> w prawym górnym rogu</li>
+                </ol>
+                <div style="margin-top:8px;padding:8px 10px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:4px;font-size:0.78rem;color:var(--text-secondary);line-height:1.4;">
+                    🔔 <strong>Ważne dla iOS:</strong> W systemie iOS (16.4+) powiadomienia PUSH działają wyłącznie po dodaniu aplikacji do Ekranu Głównego i uruchomieniu jej z utworzonej ikony.
+                </div>
+            </div>`;
+        actionHtml = `<button class="btn btn-secondary pwa-banner-close" id="pwa-dismiss-btn">Rozumiem</button>`;
+    } else if (isMac && isSafari && !deferredPrompt) {
+        instructionHtml = `
+            <div class="pwa-banner-steps">
+                <p><strong>Zainstaluj TaskAlert w Docku na komputerze Mac (Safari):</strong></p>
+                <ol>
+                    <li>W menu górnym Safari kliknij <strong>Plik</strong></li>
+                    <li>Wybierz opcję <strong>"Dodaj do Docka..."</strong> (Add to Dock)</li>
+                    <li>Kliknij <strong>"Dodaj"</strong>, aby zainstalować aplikację z powiadomieniami</li>
                 </ol>
             </div>`;
         actionHtml = `<button class="btn btn-secondary pwa-banner-close" id="pwa-dismiss-btn">Rozumiem</button>`;
-    } else if (isAndroid || deferredPrompt) {
+    } else if (isAndroid || deferredPrompt || isMac) {
         instructionHtml = `
-            <p class="pwa-banner-text">Zainstaluj TaskAlert na swoim urządzeniu, aby mieć szybki dostęp i otrzymywać powiadomienia push.</p>`;
+            <p class="pwa-banner-text">Zainstaluj TaskAlert na swoim urządzeniu, aby mieć szybki dostęp ze skrótu i bezproblemowo otrzymywać powiadomienia PUSH o zbliżających się terminach.</p>`;
         actionHtml = `
             <button class="btn btn-primary" id="pwa-install-btn">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Zainstaluj
+                Zainstaluj aplikację
             </button>
             <button class="btn btn-ghost pwa-banner-close" id="pwa-dismiss-btn">Nie teraz</button>`;
     } else {
-        return; // Brak warunków do wyświetlenia
+        return;
     }
 
     banner.innerHTML = `
@@ -97,7 +115,7 @@ function createBanner(isIOS, isAndroid) {
                 </div>
                 <div>
                     <h3 class="pwa-banner-title">Zainstaluj TaskAlert</h3>
-                    <p class="pwa-banner-subtitle">Korzystaj jak z natywnej aplikacji</p>
+                    <p class="pwa-banner-subtitle">Szybki dostęp i powiadomienia PUSH</p>
                 </div>
                 <button class="pwa-banner-x" id="pwa-close-x" aria-label="Zamknij">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -131,7 +149,6 @@ function createBanner(isIOS, isAndroid) {
 
     if (installBtn) {
         installBtn.addEventListener('click', async () => {
-            // Odczytaj ponownie — mógł nadejść w międzyczasie
             const prompt = window.__pwa_deferred_prompt;
             if (prompt) {
                 prompt.prompt();
@@ -143,11 +160,10 @@ function createBanner(isIOS, isAndroid) {
                 window.__pwa_deferred_prompt = null;
                 removeBanner();
             } else {
-                // Fallback: jeśli prompt nie jest dostępny, pokaż instrukcję
-                console.warn('[PWA] deferredPrompt niedostępny — brak wsparcia przeglądarki lub instalacja już aktywna');
+                console.warn('[PWA] deferredPrompt niedostępny — pokazuję manualną instrukcję');
                 const bannerContent = banner.querySelector('.pwa-banner-text');
                 if (bannerContent) {
-                    bannerContent.innerHTML = '<strong>Aby zainstalować:</strong> otwórz menu przeglądarki (⋮) i wybierz „Dodaj do ekranu głównego" lub „Zainstaluj aplikację".';
+                    bannerContent.innerHTML = '<strong>Aby zainstalować:</strong> otwórz menu przeglądarki (⋮ lub ikona instalacji w pasku adresu) i wybierz <em>„Dodaj do ekranu głównego"</em> lub <em>„Zainstaluj TaskAlert"</em>.';
                 }
             }
         });

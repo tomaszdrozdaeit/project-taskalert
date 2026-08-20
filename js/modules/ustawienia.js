@@ -250,9 +250,17 @@ async function initPushUI() {
         const permStatus = getPermissionStatus();
         const pushEnabled = await isPushEnabled();
 
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
         if (permStatus === 'unsupported') {
-            statusDot.style.background = '#94a3b8';
-            statusText.textContent = 'Powiadomienia push nie są wspierane w tej przeglądarce.';
+            statusDot.style.background = '#f59e0b';
+            if (isIOS && !isStandalone) {
+                statusText.innerHTML = 'Na systemie iOS powiadomienia PUSH wymagają dodania aplikacji do Ekranu Głównego.<br><span style="font-size:0.8rem;color:var(--accent-primary);font-weight:600;">👉 W Safari kliknij Udostępnij (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>) → „Dodaj do ekranu początkowego”.</span>';
+            } else {
+                statusText.textContent = 'Powiadomienia push nie są wspierane w tej przeglądarce.';
+            }
             return;
         }
 

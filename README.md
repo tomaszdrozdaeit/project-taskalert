@@ -10,7 +10,7 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties i glassmorphism) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In z automatyczną weryfikacją whitelisty `allowedUsers`).
-- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v29`, wykrywaniem platformy (Android/iOS) oraz dedykowanym banerem instalacyjnym.
+- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v30`, wykrywaniem platformy (Android/iOS/macOS) oraz dedykowanym banerem instalacyjnym.
 - **Powiadomienia PUSH**: Firebase Cloud Messaging (FCM) + Cloud Functions (Node.js 18, Cron o 9:00 czasu polskiego `Europe/Warsaw` z obsługą czasu letniego/zimowego DST, akcje drzemki 5/10 min). Dedykowana bezpieczna obsługa Androida (`ServiceWorkerRegistration.showNotification()`).
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions / Node.js dobowe weryfikacje.
 - **Testy**: Automatyczne testy reguł bezpieczeństwa Firestore (`tests/firestore-rules.test.js`) + audyt bezpieczeństwa.
@@ -23,7 +23,7 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji + nawigacja
 ├── manifest.json              # Manifest PWA (gcm_sender_id dla FCM + instalacja)
-├── service-worker.js          # Pamięć podręczna (cache v29) + obsługa PUSH w tle i akcji drzemki
+├── service-worker.js          # Pamięć podręczna (cache v30) + obsługa PUSH w tle i akcji drzemki
 ├── firestore.rules            # Reguły zabezpieczeń Firestore (strict owner, allowedUsers, sharedAlerts)
 ├── RESTART_HANDOVER.md        # Przewodnik restartowy dla agenta po restarcie komputera
 ├── plan_wdrozenia_taskalert_v3.pdf  # Dokumentacja wdrożeniowa
@@ -109,8 +109,72 @@ graph TD
 
 ### 5. Ustawienia & PWA / Push
 - Sekcja zarządzania powiadomieniami PUSH: sprawdzanie uprawnień, włączanie/wyłączanie, przycisk testowego wysłania powiadomienia.
+- Dedykowane wskazówki instalacyjne dla użytkowników iOS oraz komputerów Mac.
 - Domyślne progi alertów (`30, 14, 7, 3, 1` dni).
-- Wykrywanie platform mobilnych z pomocniczym banerem instalacji PWA (dla iOS: instrukcja manualna Safari "Dodaj do ekranu głównego").
+- Inteligentny baner instalacji PWA z instrukcją dla Safari i przyciskiem automatycznej instalacji w Chromium.
+
+---
+
+## 📱 Instrukcja Instalacji PWA & Powiadomień PUSH (iOS, Mac, Android, Windows)
+
+TaskAlert jest progresywną aplikacją webową (**Progressive Web App - PWA**). Możesz ją zainstalować na dowolnym smartfonie, tablecie lub komputerze bezpośrednio z przeglądarki internetowej — bez potrzeby korzystania ze sklepów App Store czy Google Play.
+
+---
+
+### 🍏 1. iPhone oraz iPad (System iOS / iPadOS 16.4+)
+
+> [!IMPORTANT]
+> **Warunek konieczny dla powiadomień PUSH na iOS:**
+> Firma Apple wprowadziła obsługę Web Push w systemie iOS od wersji **16.4**. Powiadomienia PUSH działają na urządzeniach iPhone i iPad **wyłącznie po dodaniu aplikacji do Ekranu Głównego** i uruchomieniu jej ze skrótu (tryb PWA / Standalone). Standardowa przeglądarka Safari w trybie kart nie pozwala na odbiór alertów w tle.
+
+#### Krok po kroku:
+1. **Otwórz aplikację w Safari:** Uruchom przeglądarkę **Safari** na swoim iPhone / iPadzie i wejdź pod adres TaskAlert (`https://tomaszdrozdaeit.github.io/project-taskalert`).
+2. **Kliknij przycisk Udostępnij:** Na dolnym pasku narzędzi Safari kliknij ikonę **Udostępnij** (kwadrat ze strzałką skierowaną w górę: ⎋ / Share).
+3. **Wybierz „Do ekranu początkowego”:** Przewiń listę opcji w dół i stuknij pozycję **„Do ekranu początkowego”** (lub *„Dodaj do ekranu głównego”* / *Add to Home Screen*).
+4. **Zatwierdź:** Kliknij **„Dodaj”** w prawym górnym rogu ekranu. Na Twoim pulpicie pojawi się ikona TaskAlert.
+5. **Uruchom i włącz powiadomienia:** 
+   - Zamknij Safari i **otwórz TaskAlert bezpośrednio z ikony na Ekranie Głównym**.
+   - Zaloguj się na swoje konto.
+   - Przejdź do zakładki **⚙️ Ustawienia → Powiadomienia PUSH**.
+   - Kliknij **„🔔 Włącz powiadomienia”** i wybierz **„Pozwól”** w systemowym komunikacie iOS.
+
+---
+
+### 💻 2. Komputery Mac (macOS)
+
+Na komputerach z systemem macOS aplikację można zainstalować zarówno przez przeglądarkę **Safari**, jak i **Google Chrome** czy **Microsoft Edge**.
+
+#### Opcja A: Przeglądarka Safari (macOS Sonoma 14+)
+1. Otwórz stronę TaskAlert w Safari.
+2. W górnym pasku menu macOS kliknij **Plik** (File).
+3. Wybierz opcję **„Dodaj do Docka...”** (Add to Dock...).
+4. W wyświetlonym oknie potwierdź nazwę i kliknij **„Dodaj”**.
+5. Ikona TaskAlert pojawi się w Docku macOS.
+6. Uruchom aplikację z Docka i w **Ustawieniach** włącz powiadomienia PUSH.
+
+#### Opcja B: Przeglądarka Google Chrome / Microsoft Edge na Macu
+1. Otwórz stronę TaskAlert w Chrome lub Edge.
+2. Po prawej stronie paska adresu URL kliknij ikonę instalacji **„Zainstaluj TaskAlert”** (lub z menu `⋮` → *Zapisz i udostępnij* → *Zainstaluj aplikację*).
+3. Kliknij **„Zainstaluj”**. Aplikacja otworzy się w osobnym, dedykowanym oknie pozbawionym pasków przeglądarki.
+4. Przejdź do **⚙️ Ustawienia** i kliknij **„🔔 Włącz powiadomienia”**.
+
+---
+
+### 🤖 3. Urządzenia z systemem Android
+
+1. Otwórz stronę TaskAlert w przeglądarce **Google Chrome** na telefonie lub tablecie z Androidem.
+2. Na dole ekranu automatycznie pojawi się baner **„Zainstaluj TaskAlert”** — kliknij przycisk **„Zainstaluj aplikację”**.
+3. *(Alternatywnie)* Otwórz menu przeglądarki (trzy kropki `⋮` w prawym górnym rogu) i wybierz **„Zainstaluj aplikację”** lub **„Dodaj do ekranu głównego”**.
+4. Po zainstalowaniu uruchom aplikację ze skrótu na pulpicie i w zakładce **⚙️ Ustawienia** włącz powiadomienia PUSH.
+
+---
+
+### 🖥️ 4. Komputery z systemem Windows (Chrome / Edge)
+
+1. Otwórz TaskAlert w przeglądarce **Google Chrome** lub **Microsoft Edge**.
+2. W pasku adresu URL kliknij ikonę **Zainstaluj aplikację** (lub w Edge: ikonę trzech kwadratów z plusem).
+3. Kliknij **Zainstaluj**. Aplikacja doda skrót do menu Start i pulpitu Windows.
+4. Włącz powiadomienia PUSH w zakładce **⚙️ Ustawienia**.
 
 ---
 
@@ -227,4 +291,4 @@ git add .
 git commit -m "Wdrożenie wersji v4 — PUSH, PWA banner, Whitelist, SharedAlerts"
 git push origin main
 ```
-Service worker korzysta z pamięci podręcznej **`taskalert-v28`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.
+Service worker korzysta z pamięci podręcznej **`taskalert-v30`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.
