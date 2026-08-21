@@ -16,6 +16,14 @@ function uid() {
     return auth.currentUser?.uid;
 }
 
+function getCurrentUserInfo() {
+    const user = auth.currentUser;
+    const uidVal = user?.uid || uid() || 'anon';
+    const emailVal = (user?.email || '').trim().toLowerCase();
+    const nameVal = String(user?.displayName || (emailVal ? emailVal.split('@')[0] : 'Użytkownik')).trim();
+    return { uid: uidVal, name: nameVal, email: emailVal };
+}
+
 function userCol(path) {
     const currentUid = uid();
     if (!currentUid) {
@@ -233,12 +241,16 @@ export async function addReminder(data) {
 
     const alertDays = data.alertDays || [30, 14, 7, 3, 1];
     const expiryTimestamp = toFirestoreTimestamp(data.expiryDate);
+    const userInfo = getCurrentUserInfo();
 
     const initialHistory = [{
         type: 'created',
         timestamp: Timestamp.now(),
         note: 'Utworzenie alertu w systemie',
-        expiryDate: expiryTimestamp
+        expiryDate: expiryTimestamp,
+        byUid: userInfo.uid,
+        byName: userInfo.name,
+        byEmail: userInfo.email
     }];
 
     const reminderData = {
@@ -258,6 +270,9 @@ export async function addReminder(data) {
         nextExpiryDate: null,
         recurrenceMonths: parseInt(data.recurrenceMonths) || 0,
         notes: String(data.notes || data.description || '').trim(),
+        createdBy: userInfo.uid,
+        createdByName: userInfo.name,
+        createdByEmail: userInfo.email,
         history: initialHistory,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -325,10 +340,14 @@ export async function updateReminder(id, data) {
         if (snap.exists()) {
             const currentData = snap.data();
             const history = [...(currentData.history || [])];
+            const userInfo = getCurrentUserInfo();
             history.push({
                 type: 'edited',
                 timestamp: Timestamp.now(),
-                note: 'Zaktualizowano dane przypomnienia'
+                note: 'Zaktualizowano dane przypomnienia',
+                byUid: userInfo.uid,
+                byName: userInfo.name,
+                byEmail: userInfo.email
             });
             data.history = history;
         }
@@ -366,13 +385,17 @@ export async function markAsExecuted(id, executedDate = new Date(), nextExpiryDa
     if (!reminder) throw new Error('Nie znaleziono przypomnienia.');
 
     const alertDays = reminder.alertDays || [30, 14, 7, 3, 1];
+    const userInfo = getCurrentUserInfo();
 
     const historyEntry = {
         type: 'executed',
         timestamp: Timestamp.now(),
         executedAt: toFirestoreTimestamp(executedDate),
         newExpiry: nextExpiryDate ? toFirestoreTimestamp(nextExpiryDate) : null,
-        note: note || 'Oznaczono przypomnienie jako wykonane'
+        note: note || 'Oznaczono przypomnienie jako wykonane',
+        byUid: userInfo.uid,
+        byName: userInfo.name,
+        byEmail: userInfo.email
     };
 
     const updatedHistory = [...(reminder.history || []), historyEntry];
@@ -605,11 +628,15 @@ export async function sendManualNotification(reminder) {
 
     // Aktualizacja historii emaila — obsługa zarówno prywatnych jak i zespołowych alertów
     if (reminder.id) {
+        const userInfo = getCurrentUserInfo();
         const historyEntry = {
             type: 'email_sent',
             timestamp: Timestamp.now(),
             recipients: recipients,
-            note: `Wysłano powiadomienie e-mail (${recipients.join(', ')})`
+            note: `Wysłano powiadomienie e-mail (${recipients.join(', ')})`,
+            byUid: userInfo.uid,
+            byName: userInfo.name,
+            byEmail: userInfo.email
         };
 
         if (reminder.isShared) {
@@ -761,15 +788,16 @@ export async function addSharedAlert(data) {
     })).filter(p => p.email.length > 0);
 
     const participantUids = cleanParticipants.map(p => p.uid).filter(Boolean);
-    const currentUid = uid() || auth.currentUser?.uid || 'anon';
+    const userInfo = getCurrentUserInfo();
 
     const initialHistory = [{
         type: 'created',
         timestamp: Timestamp.now(),
         note: 'Utworzenie alertu zespołowego',
         expiryDate: expiryTimestamp,
-        byUid: currentUid,
-        byName: String(data.createdByName || auth.currentUser?.displayName || auth.currentUser?.email || '').trim()
+        byUid: userInfo.uid,
+        byName: String(data.createdByName || userInfo.name).trim(),
+        byEmail: userInfo.email
     }];
 
     const executorEmail = cleanParticipants.find(p => p.role === 'executor')?.email || cleanParticipants[0]?.email || '';
@@ -945,11 +973,14 @@ export async function updateSharedAlert(id, data) {
         if (snap.exists()) {
             const currentData = snap.data();
             const history = [...(currentData.history || [])];
+            const userInfo = getCurrentUserInfo();
             history.push({
                 type: 'edited',
                 timestamp: Timestamp.now(),
                 note: 'Zaktualizowano dane alertu zespołowego',
-                byUid: uid()
+                byUid: userInfo.uid,
+                byName: userInfo.name,
+                byEmail: userInfo.email
             });
             data.history = history;
         }

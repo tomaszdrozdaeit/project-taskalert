@@ -801,6 +801,11 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
     const initialPrimary = reminder.primaryEmail || participantPrimary;
     const initialSecondary = reminder.secondaryEmail || participantSecondary;
 
+    const isCompleted = reminder.status === 'completed';
+    const countdownHtml = isCompleted
+        ? `<div class="reminder-countdown countdown-ok" style="background:rgba(16,185,129,0.15);color:#10b981;">✅ Zakończone</div>`
+        : `<div class="reminder-countdown countdown-${statusCls}">${countdownText}</div>`;
+
     showModal({
         title: `📌 Szczegóły: ${reminder.title}`,
         wide: true,
@@ -813,7 +818,7 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;">
                     ${convertHeaderBtn}
-                    <div class="reminder-countdown countdown-${statusCls}">${countdownText}</div>
+                    ${countdownHtml}
                 </div>
             </div>
             ${participantsHtml}
@@ -1691,18 +1696,26 @@ export function formatDateTime(date) {
 
 function renderEventHistory(historyList) {
     if (!historyList || historyList.length === 0) {
-        return '<div style="font-size:0.82rem;color:var(--text-muted);padding:10px 0;text-align:center;">Brak zarejestrowanych zdarzeń w historii.</div>';
+        return '<div style="font-size:0.82rem;color:var(--text-muted);padding:12px 0;text-align:center;">Brak zarejestrowanych zdarzeń w historii.</div>';
     }
 
     const sorted = [...historyList].reverse();
 
     return sorted.map(item => {
-        const timeStr = formatDateTime(item.timestamp || item.executedAt);
+        const timeStr = formatDateTime(item.timestamp || item.executedAt || item.createdAt);
         let icon = '📌';
         let titleStr = '';
         let badgeColor = 'var(--accent-color)';
         let badgeBg = 'rgba(79, 140, 255, 0.12)';
         let detailsHtml = '';
+
+        const actorName = item.byName || item.performedBy || item.createdByName || (item.byEmail ? item.byEmail.split('@')[0] : '');
+        const actorEmail = item.byEmail || item.performedByEmail || '';
+        const actorHtml = actorName ? `
+            <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:3px;display:flex;align-items:center;gap:4px;">
+                <span>👤</span>
+                <span><strong>${escHtml(actorName)}</strong>${actorEmail && actorEmail.toLowerCase() !== actorName.toLowerCase() ? ` (${escHtml(actorEmail)})` : ''}</span>
+            </div>` : '';
 
         if (item.type === 'created') {
             icon = '🆕';
@@ -1710,9 +1723,9 @@ function renderEventHistory(historyList) {
             badgeColor = '#10b981';
             badgeBg = 'rgba(16, 185, 129, 0.15)';
             if (item.expiryDate) {
-                detailsHtml = `Pierwotny termin wygaśnięcia: <strong style="color:#10b981;">${formatDate(item.expiryDate)}</strong>`;
+                detailsHtml = `Pierwotny termin: <strong style="color:#10b981;">${formatDate(item.expiryDate)}</strong>`;
             } else {
-                detailsHtml = escHtml(item.note || 'Utworzono przypomnienie');
+                detailsHtml = escHtml(item.note || 'Utworzono alert w systemie');
             }
         } else if (item.type === 'edited') {
             icon = '✏️';
@@ -1727,6 +1740,12 @@ function renderEventHistory(historyList) {
             badgeBg = 'rgba(124, 58, 237, 0.15)';
             const recs = (item.recipients || []).map(r => `<span style="color:#7c3aed;font-weight:600;">${escHtml(r)}</span>`).join(', ');
             detailsHtml = recs ? `Odbiorcy: ${recs}` : (item.note ? escHtml(item.note) : '');
+        } else if (item.type === 'converted_to_team') {
+            icon = '👥';
+            titleStr = 'Konwersja na zespołowy';
+            badgeColor = '#8b5cf6';
+            badgeBg = 'rgba(139, 92, 246, 0.15)';
+            detailsHtml = item.note ? escHtml(item.note) : 'Przekształcono alert prywatny na współdzielony alert zespołowy';
         } else if (item.type === 'executed' || item.executedAt) {
             icon = '✅';
             titleStr = 'Oznaczono jako wykonane';
@@ -1738,7 +1757,7 @@ function renderEventHistory(historyList) {
             if (nextTime) {
                 detailsHtml += ` → Następny termin: <strong style="color:#4f8cff;">${nextTime}</strong>`;
             } else {
-                detailsHtml += ` <span style="color:#ef4444;font-weight:600;">(Zamknięte)</span>`;
+                detailsHtml += ` <span style="color:#ef4444;font-weight:600;">(Zamknięto cykl / Archiwum)</span>`;
             }
             if (item.note) {
                 detailsHtml += `<div style="margin-top:3px;color:var(--text-secondary);">📝 <em>${escHtml(item.note)}</em></div>`;
@@ -1749,14 +1768,15 @@ function renderEventHistory(historyList) {
         }
 
         return `
-            <div style="display:flex;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--border-light);">
-                <div style="font-size:1.2rem;line-height:1;padding-top:2px;">${icon}</div>
-                <div style="flex:1;">
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;">
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:9px 0;border-bottom:1px solid var(--border-light);">
+                <div style="font-size:1.25rem;line-height:1;padding-top:2px;">${icon}</div>
+                <div style="flex:1;min-width:0;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;flex-wrap:wrap;">
                         <span style="font-weight:700;font-size:0.8rem;color:${badgeColor};background:${badgeBg};padding:2px 8px;border-radius:6px;">${titleStr}</span>
                         <span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">🕒 ${timeStr}</span>
                     </div>
-                    <div style="font-size:0.8rem;color:var(--text-primary);margin-top:3px;">${detailsHtml}</div>
+                    <div style="font-size:0.82rem;color:var(--text-primary);margin-top:2px;">${detailsHtml}</div>
+                    ${actorHtml}
                 </div>
             </div>`;
     }).join('');
