@@ -162,17 +162,25 @@ export async function registerUser(email, password, displayName) {
     if (!email) throw { code: 'auth/invalid-email', message: 'Podaj poprawny adres e-mail.' };
     const normalizedEmail = email.trim().toLowerCase();
 
-    // 1. Sprawdź czy adres jest na whitelist PRZED utworzeniem konta
-    const allowed = await isUserAllowed(normalizedEmail);
+    // 1. Utwórz konto w Firebase Auth (uwierzytelnienie)
+    const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+
+    // 2. Po utworzeniu i uwierzytelnieniu sprawdź czy adres znajduje się na whitelist
+    const allowed = await isUserAllowed(cred.user.email);
     if (!allowed) {
+        // Jeśli użytkownik nie jest na whitelist - usuń/wyloguj nieuprawnione konto
+        try {
+            await cred.user.delete();
+        } catch (e) {
+            await signOut(auth);
+        }
         throw {
             code: 'auth/user-not-allowed',
             message: 'Rejestracja zablokowana: Twój adres e-mail nie znajduje się na liście autoryzowanych użytkowników (whitelist). Skontaktuj się z administratorem, aby dodał Twoje konto.'
         };
     }
 
-    // 2. Utwórz konto w Firebase Auth
-    const cred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+    // 3. Uprawniony użytkownik — zaktualizuj nazwę i zainicjalizuj profil
     await updateProfile(cred.user, { displayName });
     await ensureUserProfile(cred.user);
     return cred.user;
@@ -183,16 +191,21 @@ export async function loginUser(email, password) {
     if (!email) throw { code: 'auth/invalid-email', message: 'Podaj poprawny adres e-mail.' };
     const normalizedEmail = email.trim().toLowerCase();
 
-    // 1. Sprawdź czy użytkownik jest dozwolony
-    const allowed = await isUserAllowed(normalizedEmail);
+    // 1. Zaloguj w Firebase Auth (uwierzytelnienie użytkownika)
+    const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+
+    // 2. Po pomyślnym zalogowaniu (z ważnym tokenem auth) sprawdź czy konto jest aktywne na whitelist
+    const allowed = await isUserAllowed(cred.user.email);
     if (!allowed) {
+        // Wyloguj nieuprawnione lub zablokowane konto
+        await signOut(auth);
         throw {
             code: 'auth/user-not-allowed',
-            message: 'Odmowa dostępu: Twój adres e-mail nie znajduje się na liście autoryzowanych użytkowników lub został zablokowany.'
+            message: 'Odmowa dostępu: Twój adres e-mail nie znajduje się na liście autoryzowanych użytkowników lub został zablokowany przez administratora.'
         };
     }
 
-    const cred = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+    // 3. Zainicjalizuj i zsynchronizuj profil
     await ensureUserProfile(cred.user);
     return cred.user;
 }

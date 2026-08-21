@@ -18,7 +18,7 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
-const CACHE_NAME = 'taskalert-v31';
+const CACHE_NAME = 'taskalert-v34';
 const ASSETS_TO_CACHE = [
     './',
     './index.html',
@@ -40,7 +40,9 @@ const ASSETS_TO_CACHE = [
     './js/modules/pwa-install-banner.js',
     './js/modules/push-notifications.js',
     './icons/icon-192.png',
-    './icons/icon-512.png'
+    './icons/icon-512.png',
+    './icons/badge-72.png',
+    './icons/badge.png'
 ];
 
 // Instalacja — cache assetów
@@ -117,14 +119,16 @@ messaging.onBackgroundMessage((payload) => {
     console.log('[SW] Background push message:', payload);
 
     const notificationTitle = payload.notification?.title || '🔔 TaskAlert';
+    const alertId = payload.data?.alertId || payload.notification?.tag || 'taskalert-notification';
+    const targetUrl = payload.data?.url || (payload.data?.alertId ? `./?alertId=${encodeURIComponent(payload.data.alertId)}` : './');
     const notificationOptions = {
         body: payload.notification?.body || 'Masz nowe powiadomienie',
         icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
-        tag: payload.data?.alertId || 'taskalert-bg-notification',
+        badge: './icons/badge-72.png',
+        tag: alertId,
         data: {
             alertId: payload.data?.alertId,
-            url: payload.data?.url || './'
+            url: targetUrl
         },
         actions: [
             { action: 'snooze5', title: '⏰ 5 min' },
@@ -143,6 +147,8 @@ self.addEventListener('notificationclick', (event) => {
     const notification = event.notification;
     const action = event.action;
     const data = notification.data || {};
+    const alertId = data.alertId;
+    const targetUrl = data.url || (alertId ? `./?alertId=${encodeURIComponent(alertId)}` : './');
 
     notification.close();
 
@@ -154,8 +160,8 @@ self.addEventListener('notificationclick', (event) => {
                     self.registration.showNotification(notification.title + ' (drzemka)', {
                         body: notification.body,
                         icon: './icons/icon-192.png',
-                        badge: './icons/icon-192.png',
-                        tag: data.alertId + '-snooze',
+                        badge: './icons/badge-72.png',
+                        tag: (data.alertId || 'taskalert') + '-snooze',
                         data: data,
                         requireInteraction: true,
                         vibrate: [200, 100, 200]
@@ -175,8 +181,8 @@ self.addEventListener('notificationclick', (event) => {
                     self.registration.showNotification(notification.title + ' (drzemka)', {
                         body: notification.body,
                         icon: './icons/icon-192.png',
-                        badge: './icons/icon-192.png',
-                        tag: data.alertId + '-snooze',
+                        badge: './icons/badge-72.png',
+                        tag: (data.alertId || 'taskalert') + '-snooze',
                         data: data,
                         requireInteraction: true,
                         vibrate: [200, 100, 200]
@@ -196,22 +202,23 @@ self.addEventListener('notificationclick', (event) => {
     // Domyślne kliknięcie — otwórz aplikację na alercie
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-            // Jeśli okno jest otwarte — sfokusuj je
+            // Jeśli okno jest otwarte — sfokusuj je i wyślij komunikat o otwarciu alertu
             for (const client of clientList) {
-                if (client.url.includes('index.html') || client.url.endsWith('/')) {
+                if ('focus' in client) {
                     client.focus();
-                    if (data.alertId) {
+                    if (alertId) {
                         client.postMessage({
                             type: 'PUSH_NOTIFICATION_CLICK',
-                            alertId: data.alertId
+                            alertId: alertId
                         });
                     }
                     return;
                 }
             }
-            // Otwórz nowe okno
-            const targetUrl = data.url || './';
-            return clients.openWindow(targetUrl);
+            // Brak otwartego okna — otwórz nowe okno z parametrem alertId
+            if (clients.openWindow) {
+                return clients.openWindow(targetUrl);
+            }
         })
     );
 });

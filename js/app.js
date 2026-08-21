@@ -22,6 +22,65 @@ window.addEventListener('appinstalled', () => {
     console.log('[PWA] Aplikacja zainstalowana');
 });
 
+// ── Global Push Notification Deep Link Capture ──────────
+let pendingAlertId = null;
+let isUserAuthenticated = false;
+
+function getAlertIdFromUrl() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const qAlertId = urlParams.get('alertId');
+        if (qAlertId) return qAlertId;
+
+        if (window.location.hash.startsWith('#alert-')) {
+            return window.location.hash.replace('#alert-', '');
+        }
+    } catch (e) {}
+    return null;
+}
+
+const initialAlertId = getAlertIdFromUrl();
+if (initialAlertId) {
+    pendingAlertId = initialAlertId;
+    console.log('[Push DeepLink] Wykryto parametr alertId w URL:', pendingAlertId);
+}
+
+// Globalny handler otwierania szczegółów alertu z powiadomienia
+async function openAlertFromNotification(alertId) {
+    if (!alertId) return;
+
+    if (!isUserAuthenticated) {
+        pendingAlertId = alertId;
+        return;
+    }
+
+    try {
+        // Wyczyść parametr alertId z URL (bez przeładowywania strony), aby nie otwierać ponownie przy F5
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('alertId')) {
+            url.searchParams.delete('alertId');
+            window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : '') + (url.hash || ''));
+        }
+        if (window.location.hash.startsWith('#alert-')) {
+            window.location.hash = '#dashboard';
+        }
+
+        await showReminderDetailsModal(alertId);
+    } catch (err) {
+        console.error('[App] Błąd otwierania szczegółów alertu z powiadomienia:', err);
+    }
+}
+
+// Globalny nasłuch wiadomości z Service Workera
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data?.type === 'PUSH_NOTIFICATION_CLICK' && event.data?.alertId) {
+            console.log('[App] Otrzymano zdarzenie PUSH_NOTIFICATION_CLICK dla alertId:', event.data.alertId);
+            openAlertFromNotification(event.data.alertId);
+        }
+    });
+}
+
 // ============================================================
 // THEME MANAGEMENT
 // ============================================================
@@ -131,7 +190,7 @@ loginForm.addEventListener('submit', async (e) => {
         showToast('Zalogowano pomyślnie!', 'success');
     } catch (err) {
         console.error('[Auth] Login error:', err);
-        const msg = getAuthErrorMessage(err.code);
+        const msg = getAuthErrorMessage(err);
         showToast(msg, 'error');
     } finally {
         btn.classList.remove('loading');
@@ -148,7 +207,7 @@ if (googleBtn) {
             showToast('Zalogowano przez Google!', 'success');
         } catch (err) {
             console.error('[Auth] Google Login error:', err);
-            const msg = getAuthErrorMessage(err.code);
+            const msg = getAuthErrorMessage(err);
             showToast(msg, 'error');
         } finally {
             googleBtn.classList.remove('loading');
@@ -176,7 +235,7 @@ registerForm.addEventListener('submit', async (e) => {
         showToast('Konto utworzone! Witamy w TaskAlert.', 'success');
     } catch (err) {
         console.error('[Auth] Register error:', err);
-        const msg = getAuthErrorMessage(err.code);
+        const msg = getAuthErrorMessage(err);
         showToast(msg, 'error');
     } finally {
         btn.classList.remove('loading');
@@ -196,7 +255,7 @@ resetForm.addEventListener('submit', async (e) => {
         switchAuthMode('login');
     } catch (err) {
         console.error('[Auth] Reset error:', err);
-        const msg = getAuthErrorMessage(err.code);
+        const msg = getAuthErrorMessage(err);
         showToast(msg, 'error');
     } finally {
         btn.classList.remove('loading');
@@ -204,7 +263,11 @@ resetForm.addEventListener('submit', async (e) => {
 });
 
 // ── Auth error messages (PL) ────────────────────────────
-function getAuthErrorMessage(code) {
+function getAuthErrorMessage(err) {
+    const code = (typeof err === 'string') ? err : (err?.code || '');
+    if (typeof err === 'object' && err?.message && code === 'auth/user-not-allowed') {
+        return err.message;
+    }
     const messages = {
         'auth/email-already-in-use':  'Ten adres e-mail jest już zarejestrowany.',
         'auth/invalid-email':         'Nieprawidłowy format adresu e-mail.',
@@ -218,7 +281,7 @@ function getAuthErrorMessage(code) {
         'auth/unauthorized-domain':   'Adres/domena nie jest autoryzowana w Firebase Auth. Użyj adresu http://localhost:3001',
         'auth/popup-blocked':         'Okno logowania Google zostało zablokowane przez przeglądarkę. Zezwól na wyskakujące okienka (popup).'
     };
-    return messages[code] || `Wystąpił błąd autoryzacji: ${code}`;
+    return messages[code] || (typeof err === 'object' && err?.message) || `Wystąpił błąd autoryzacji: ${code}`;
 }
 
 // ── Logout ──────────────────────────────────────────────
@@ -247,6 +310,7 @@ onAuthChange(async (user) => {
         }
 
         // Zalogowany i uprawniony
+        isUserAuthenticated = true;
         loginScreen.style.display = 'none';
         appWrapper.style.display  = 'flex';
 
@@ -297,6 +361,15 @@ onAuthChange(async (user) => {
         // Nawiguj do strony z hash lub dashboard (ZAWSZE EXECUTE)
         navigateFromHash();
 
+        // Jeśli był oczekujący alert do otwarcia (np. z kliknięcia powiadomienia PUSH)
+        if (pendingAlertId) {
+            const alertToOpen = pendingAlertId;
+            pendingAlertId = null;
+            setTimeout(() => {
+                openAlertFromNotification(alertToOpen);
+            }, 450);
+        }
+
         // Pokaż baner instalacji PWA (jeśli na mobile)
         try {
             const { showInstallBanner } = await import('./modules/pwa-install-banner.js');
@@ -315,17 +388,9 @@ onAuthChange(async (user) => {
         } catch (err) {
             console.warn('[Push] Błąd inicjalizacji:', err);
         }
-
-        // Nasłuchuj kliknięcia push notification z service workera
-        if (navigator.serviceWorker) {
-            navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data?.type === 'PUSH_NOTIFICATION_CLICK' && event.data?.alertId) {
-                    showReminderDetailsModal(event.data.alertId);
-                }
-            });
-        }
     } else {
         // Wylogowany
+        isUserAuthenticated = false;
         loginScreen.style.display = '';
         appWrapper.style.display  = 'none';
         switchAuthMode('login');

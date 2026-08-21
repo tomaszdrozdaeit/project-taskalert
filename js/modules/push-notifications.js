@@ -115,9 +115,13 @@ async function saveToken(token) {
     const snap = await getDoc(pushConfigRef);
     const existing = snap.exists() ? snap.data() : {};
 
-    const tokens = existing.fcmTokens || [];
+    let tokens = existing.fcmTokens || [];
     if (!tokens.includes(token)) {
         tokens.push(token);
+    }
+    // Ogranicz do maksymalnie 3 najnowszych aktywnych tokenów per użytkownik
+    if (tokens.length > 3) {
+        tokens = tokens.slice(-3);
     }
 
     await setDoc(pushConfigRef, {
@@ -178,7 +182,7 @@ export async function setupForegroundHandler() {
                 await displayNotification(title || 'TaskAlert', {
                     body: body || '',
                     icon: './icons/icon-192.png',
-                    badge: './icons/icon-192.png',
+                    badge: './icons/badge-72.png',
                     tag: alertId || 'taskalert-notification',
                     data: { alertId, url: payload.data?.url },
                     actions: [
@@ -203,7 +207,7 @@ export async function sendTestPushNotification() {
     await displayNotification('🔔 TaskAlert — Test', {
         body: 'To jest testowe powiadomienie push. Jeśli je widzisz — wszystko działa poprawnie!',
         icon: './icons/icon-192.png',
-        badge: './icons/icon-192.png',
+        badge: './icons/badge-72.png',
         tag: 'taskalert-test',
         requireInteraction: true,
         data: { url: './' }

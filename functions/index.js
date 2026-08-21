@@ -59,22 +59,39 @@ exports.scheduledAlertCheck = onSchedule({
             expiryDate.setHours(0, 0, 0, 0);
             const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
 
-            const alertDays = reminder.alertDays || [30, 14, 7, 3, 1];
+            const rawAlertDays = reminder.alertDays || [30, 14, 7, 3, 1];
+            const alertDays = [...rawAlertDays].sort((a, b) => b - a);
+            const alertFlags = { ...(reminder.alertFlags || {}) };
+            let flagsUpdated = false;
 
             // Sprawdź czy dzisiejszy dzień pasuje do progu alertu
             for (const threshold of alertDays) {
-                if (daysLeft === threshold || (daysLeft <= 0 && threshold === 1)) {
+                const flagKey = String(threshold);
+                if (daysLeft <= threshold && daysLeft >= 0 && !alertFlags[flagKey]) {
                     // Wyślij push
                     await sendPushToTokens(fcmTokens, {
                         title: `⏰ ${reminder.title}`,
                         body: daysLeft <= 0
-                            ? `🔴 Termin minął ${Math.abs(daysLeft)} dni temu!`
+                            ? `🔴 Termin minął dzisiaj (${formatDatePL(expiryDate)})!`
                             : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
-                        data: { alertId: reminderDoc.id, url: './' }
-                    });
+                        data: { alertId: reminderDoc.id, url: `./?alertId=${reminderDoc.id}` }
+                    }, uid);
                     sentCount++;
+
+                    // Oznacz bieżący próg oraz wyższe jako obsłużone
+                    alertFlags[flagKey] = true;
+                    for (const higherThreshold of alertDays) {
+                        if (higherThreshold >= threshold) {
+                            alertFlags[String(higherThreshold)] = true;
+                        }
+                    }
+                    flagsUpdated = true;
                     break; // Jeden push na alert na dzień
                 }
+            }
+
+            if (flagsUpdated) {
+                await reminderDoc.ref.update({ alertFlags });
             }
         }
     }
@@ -91,38 +108,49 @@ exports.scheduledAlertCheck = onSchedule({
         expiryDate.setHours(0, 0, 0, 0);
         const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
 
-        const alertDays = alert.alertDays || [30, 14, 7, 3, 1];
-        let shouldSend = false;
+        const rawAlertDays = alert.alertDays || [30, 14, 7, 3, 1];
+        const alertDays = [...rawAlertDays].sort((a, b) => b - a);
+        const alertFlags = { ...(alert.alertFlags || {}) };
+        let flagsUpdated = false;
 
         for (const threshold of alertDays) {
-            if (daysLeft === threshold || (daysLeft <= 0 && threshold === 1)) {
-                shouldSend = true;
+            const flagKey = String(threshold);
+            if (daysLeft <= threshold && daysLeft >= 0 && !alertFlags[flagKey]) {
+                // Wyślij push do wszystkich uczestników
+                const participantUids = alert.participantUids || (alert.participants || []).map(p => p.uid);
+                for (const pUid of participantUids) {
+                    const pushConfigSnap = await db.doc(`users/${pUid}/settings/pushConfig`).get();
+                    if (!pushConfigSnap.exists || !pushConfigSnap.data().pushEnabled) continue;
+
+                    const pushConfig = pushConfigSnap.data();
+                    const fcmTokens = pushConfig.fcmTokens || [];
+                    const mutedAlerts = pushConfig.mutedAlerts || [];
+
+                    if (fcmTokens.length === 0 || mutedAlerts.includes(alertDoc.id)) continue;
+
+                    await sendPushToTokens(fcmTokens, {
+                        title: `👥 ${alert.title}`,
+                        body: daysLeft <= 0
+                            ? `🔴 Termin minął dzisiaj! (alert zespołowy)`
+                            : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
+                        data: { alertId: alertDoc.id, url: `./?alertId=${alertDoc.id}#team-alerts` }
+                    }, pUid);
+                    sentCount++;
+                }
+
+                alertFlags[flagKey] = true;
+                for (const higherThreshold of alertDays) {
+                    if (higherThreshold >= threshold) {
+                        alertFlags[String(higherThreshold)] = true;
+                    }
+                }
+                flagsUpdated = true;
                 break;
             }
         }
 
-        if (!shouldSend) continue;
-
-        // Wyślij push do wszystkich uczestników
-        const participantUids = alert.participantUids || (alert.participants || []).map(p => p.uid);
-        for (const pUid of participantUids) {
-            const pushConfigSnap = await db.doc(`users/${pUid}/settings/pushConfig`).get();
-            if (!pushConfigSnap.exists || !pushConfigSnap.data().pushEnabled) continue;
-
-            const pushConfig = pushConfigSnap.data();
-            const fcmTokens = pushConfig.fcmTokens || [];
-            const mutedAlerts = pushConfig.mutedAlerts || [];
-
-            if (fcmTokens.length === 0 || mutedAlerts.includes(alertDoc.id)) continue;
-
-            await sendPushToTokens(fcmTokens, {
-                title: `👥 ${alert.title}`,
-                body: daysLeft <= 0
-                    ? `🔴 Termin minął ${Math.abs(daysLeft)} dni temu! (alert zespołowy)`
-                    : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
-                data: { alertId: alertDoc.id, url: './#team-alerts' }
-            });
-            sentCount++;
+        if (flagsUpdated) {
+            await alertDoc.ref.update({ alertFlags });
         }
     }
 
@@ -159,7 +187,7 @@ exports.onPushTestRequest = onDocumentCreated({
         return;
     }
 
-    await sendPushToTokens(fcmTokens, { title, body, data: {} });
+    await sendPushToTokens(fcmTokens, { title, body, data: { alertId: 'test-push', url: './' } }, uid);
     console.log(`[Functions] Wysłano testowe push do uid: ${uid}`);
 
     // Usuń dokument po wysłaniu
@@ -169,10 +197,12 @@ exports.onPushTestRequest = onDocumentCreated({
 // ============================================================
 // HELPER: Wysyłanie push do listy tokenów FCM
 // ============================================================
-async function sendPushToTokens(tokens, { title, body, data = {} }) {
+async function sendPushToTokens(tokens, { title, body, data = {} }, uid = null) {
     if (!tokens || tokens.length === 0) return;
 
     const messaging = getMessaging();
+    const alertTag = data.alertId || 'taskalert-notification';
+    const targetUrl = data.url || (data.alertId ? `./?alertId=${encodeURIComponent(data.alertId)}` : './');
 
     const message = {
         notification: {
@@ -183,7 +213,8 @@ async function sendPushToTokens(tokens, { title, body, data = {} }) {
         webpush: {
             notification: {
                 icon: './icons/icon-192.png',
-                badge: './icons/icon-192.png',
+                badge: './icons/badge-72.png',
+                tag: alertTag,
                 requireInteraction: true,
                 actions: [
                     { action: 'snooze5', title: '⏰ 5 min' },
@@ -192,14 +223,15 @@ async function sendPushToTokens(tokens, { title, body, data = {} }) {
                 ]
             },
             fcmOptions: {
-                link: data.url || './'
+                link: targetUrl
             }
         }
     };
 
+    const uniqueTokens = [...new Set(tokens)];
     const invalidTokens = [];
 
-    for (const token of tokens) {
+    for (const token of uniqueTokens) {
         try {
             await messaging.send({ ...message, token });
         } catch (err) {
@@ -211,8 +243,21 @@ async function sendPushToTokens(tokens, { title, body, data = {} }) {
         }
     }
 
-    // Opcjonalnie: usuń nieaktywne tokeny
-    // (można dodać logikę czyszczenia nieaktywnych tokenów)
+    // Usuń nieaktywne / wygasłe tokeny z Firestore
+    if (invalidTokens.length > 0 && uid) {
+        try {
+            const pushConfigRef = db.doc(`users/${uid}/settings/pushConfig`);
+            const snap = await pushConfigRef.get();
+            if (snap.exists) {
+                const currentTokens = snap.data().fcmTokens || [];
+                const updatedTokens = currentTokens.filter(t => !invalidTokens.includes(t));
+                await pushConfigRef.update({ fcmTokens: updatedTokens });
+                console.log(`[Functions] Usunięto ${invalidTokens.length} nieaktywnych tokenów dla uid: ${uid}`);
+            }
+        } catch (cleanupErr) {
+            console.warn('[Functions] Błąd czyszczenia nieaktywnych tokenów:', cleanupErr.message);
+        }
+    }
 }
 
 function formatDatePL(date) {

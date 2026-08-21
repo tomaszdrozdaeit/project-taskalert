@@ -61,7 +61,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v31` w `service-worker.js` oraz podbito wersje w `index.html` (`v=31`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v34` w `service-worker.js` oraz podbito wersje w `index.html` (`v=34`).
  7. **Konwersja Alertów Prywatnych na Zespołowe:**
    - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
  8. **Baner PWA i Instrukcja dla iOS oraz Mac:**
@@ -70,6 +70,18 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
  9. **Rygorystyczna Ochrona Whitelist (Logowanie i Dostęp):**
    - Zaktualizowano `auth.js` i `app.js`: Rejestracja, logowanie hasłem, Google Sign-in oraz stan sesji `onAuthChange` blokują każdego użytkownika spoza `allowedUsers`.
    - Zaktualizowano `firestore.rules`: Reguły Firestore blokują odczyt i zapis w `/users/{uid}`, `/sharedAlerts`, `/categories` oraz `/mail` dla kont nieznajdujących się na whitelist.
+ 10. **Eliminacja Podwójnych PUSH & Nowa Ikona Paska Androida (Checkmark Badge):**
+   - Rozwiązano problem podwójnych powiadomień PUSH poprzez wprowadzenie `tag: alertId` we wszystkich kanałach wysyłki (`webpush.notification`, Cloud Functions, GitHub Actions `daily_check.js`, Service Worker).
+   - Zsynchronizowano sprawdzanie `alertFlags` w Cloud Functions, zapobiegając duplikatom w przypadku zbiegu z GitHub Actions.
+   - Dodano automatyczne czyszczenie nieaktywnych tokenów FCM z Firestore i limitowanie liczby tokenów na użytkownika.
+   - Wygenerowano dedykowaną przezroczystą ikonę monochromatyczną `icons/badge-72.png` (sylwetka białego checkmarka TaskAlert), eliminując problem białego kwadratu na górnym pasku stanu Androida.
+ 11. **Bezpośrednie Otwieranie Szczegółów Alertu z Powiadomienia PUSH (Deep Linking):**
+   - Dodano przekazywanie `url: ./?alertId=ID` w payloadzie FCM oraz `fcmOptions.link`.
+   - W `app.js` zaimplementowano obsługę parametru `?alertId=` na starcie aplikacji (`pendingAlertId` po `onAuthChange`) oraz obsługę komunikatu `PUSH_NOTIFICATION_CLICK` z Service Workera.
+   - Kliknięcie powiadomienia natychmiast otwiera modal ze szczegółami, odliczaniem i historią danego alertu zamiast pozostawiać użytkownika na pulpicie.
+ 12. **Naprawa Logowania dla Użytkowników z Listy Aktywnych (Whitelist Fix):**
+   - Usunięto błąd polegający na sprawdzaniu `allowedUsers` przed uwierzytelnieniem w Firebase Auth (co powodowało błąd odmowy uprawnień Firestore `permission-denied` przy logowaniu i rejestracji).
+   - Wprowadzono prawidłowy, bezpieczny przepływ: logowanie/rejestracja w Firebase Auth -> weryfikacja uprawnień w `allowedUsers` (z aktywną sesją auth) -> natychmiastowe wylogowanie/usunięcie konta w przypadku braku uprawnień.
 
 ---
 

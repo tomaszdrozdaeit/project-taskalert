@@ -40,8 +40,12 @@ if (serviceAccountRaw) {
 const db = admin.firestore();
 
 // Helper do wysyłania FCM Web Push
-async function sendPushToTokens(tokens, { title, body, data = {} }) {
+async function sendPushToTokens(tokens, { title, body, data = {} }, uid = null) {
     if (!tokens || tokens.length === 0) return 0;
+
+    const alertTag = data.alertId || 'taskalert-notification';
+
+    const targetUrl = data.url || (data.alertId ? `./?alertId=${encodeURIComponent(data.alertId)}` : './');
 
     const message = {
         notification: {
@@ -52,7 +56,8 @@ async function sendPushToTokens(tokens, { title, body, data = {} }) {
         webpush: {
             notification: {
                 icon: './icons/icon-192.png',
-                badge: './icons/icon-192.png',
+                badge: './icons/badge-72.png',
+                tag: alertTag,
                 requireInteraction: true,
                 actions: [
                     { action: 'snooze5', title: '⏰ 5 min' },
@@ -61,20 +66,44 @@ async function sendPushToTokens(tokens, { title, body, data = {} }) {
                 ]
             },
             fcmOptions: {
-                link: data.url || './'
+                link: targetUrl
             }
         }
     };
 
+    const uniqueTokens = [...new Set(tokens)];
+    const invalidTokens = [];
     let successful = 0;
-    for (const token of tokens) {
+
+    for (const token of uniqueTokens) {
         try {
             await admin.messaging().send({ ...message, token });
             successful++;
         } catch (err) {
             console.warn(`[DailyCheck] Błąd wysyłania push do tokenu ${token.substring(0, 15)}...:`, err.message);
+            if (err.code === 'messaging/invalid-registration-token' ||
+                err.code === 'messaging/registration-token-not-registered') {
+                invalidTokens.push(token);
+            }
         }
     }
+
+    // Usuń nieaktywne / wygasłe tokeny z Firestore
+    if (invalidTokens.length > 0 && uid) {
+        try {
+            const pushConfigRef = db.doc(`users/${uid}/settings/pushConfig`);
+            const snap = await pushConfigRef.get();
+            if (snap.exists) {
+                const currentTokens = snap.data().fcmTokens || [];
+                const updatedTokens = currentTokens.filter(t => !invalidTokens.includes(t));
+                await pushConfigRef.update({ fcmTokens: updatedTokens });
+                console.log(`[DailyCheck] Usunięto ${invalidTokens.length} nieaktywnych tokenów dla uid: ${uid}`);
+            }
+        } catch (cleanupErr) {
+            console.warn('[DailyCheck] Błąd czyszczenia nieaktywnych tokenów:', cleanupErr.message);
+        }
+    }
+
     return successful;
 }
 
@@ -168,8 +197,8 @@ async function runDailyCheck() {
                                     body: daysLeft <= 0
                                         ? `🔴 Termin minął dzisiaj (${formatDatePL(expiryDate)})!`
                                         : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
-                                    data: { alertId: docSnap.id, url: './' }
-                                });
+                                    data: { alertId: docSnap.id, url: `./?alertId=${docSnap.id}` }
+                                }, uid);
                                 pushSentCount += pushSuccess;
                             }
                         }
@@ -263,8 +292,8 @@ async function runDailyCheck() {
                                         body: daysLeft <= 0
                                             ? `🔴 Termin minął dzisiaj! (alert zespołowy)`
                                             : `Pozostało ${daysLeft} dni do terminu (${formatDatePL(expiryDate)})`,
-                                        data: { alertId: alertDoc.id, url: './#team-alerts' }
-                                    });
+                                        data: { alertId: alertDoc.id, url: `./?alertId=${alertDoc.id}#team-alerts` }
+                                    }, pUid);
                                     pushSentCount += pushSuccess;
                                 }
                             }
