@@ -735,13 +735,13 @@ export function saveCustomEmail(email) {
     }
 }
 
-// Helper for email dropdown options from allowedUsers + custom remembered emails
-function buildEmailOptions(allowedUsers = [], currentEmail = '', defaultEmail = '') {
+// Helper for email dropdown options from allowedUsers + user's cloud customEmails
+function buildEmailOptions(allowedUsers = [], currentEmail = '', defaultEmail = '', customEmails = []) {
     const selected = (currentEmail || defaultEmail || '').trim().toLowerCase();
     let options = `<option value="">— Wybierz adres e-mail —</option>`;
     let found = false;
 
-    // 1. Użytkownicy z bazy
+    // 1. Użytkownicy z organizacji / bazy
     (allowedUsers || []).forEach(u => {
         const uEmail = (u.email || '').trim();
         if (!uEmail) return;
@@ -752,13 +752,16 @@ function buildEmailOptions(allowedUsers = [], currentEmail = '', defaultEmail = 
         options += `<option value="${uEmail.replace(/"/g, '&quot;')}" ${isSel ? 'selected' : ''}>${displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</option>`;
     });
 
-    // 2. Zapamiętane dodatkowe adresy
-    const customList = getCustomEmails();
-    const customOnly = customList.filter(ce => !(allowedUsers || []).some(u => (u.email || '').toLowerCase() === ce));
+    // 2. Prywatne adresy e-mail użytkownika (zsynchronizowane z Firestore w chmurze)
+    const customList = Array.isArray(customEmails) && customEmails.length > 0
+        ? customEmails
+        : getCustomEmails();
+
+    const customOnly = customList.filter(ce => !(allowedUsers || []).some(u => (u.email || '').toLowerCase() === (ce || '').toLowerCase()));
     if (customOnly.length > 0) {
-        options += `<optgroup label="Zapamiętane adresy e-mail">`;
+        options += `<optgroup label="📋 Moje prywatne adresy e-mail">`;
         customOnly.forEach(ce => {
-            const isSel = (ce === selected);
+            const isSel = (ce.toLowerCase() === selected);
             if (isSel) found = true;
             options += `<option value="${ce.replace(/"/g, '&quot;')}" ${isSel ? 'selected' : ''}>${ce}</option>`;
         });
@@ -792,7 +795,7 @@ export function getCountdownClass(days) {
 // REMINDER DETAILS & EDIT MODAL (Central Dialog)
 // ============================================================
 export async function showReminderDetailsModal(reminderId, reminderData) {
-    const { getReminder, getCategories, getAllowedUsers, parseDate, updateReminder, deleteReminder, sendManualNotification, convertReminderToTeamAlert } = await import('./db.js');
+    const { getReminder, getCategories, getAllowedUsers, parseDate, updateReminder, deleteReminder, sendManualNotification, convertReminderToTeamAlert, getUserCustomEmails, addUserCustomEmail } = await import('./db.js');
 
     let reminder = reminderData || await getReminder(reminderId);
     if (!reminder) {
@@ -802,6 +805,7 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
 
     const categories = await getCategories();
     const allowedUsers = await getAllowedUsers();
+    let customEmails = await getUserCustomEmails();
     const days = daysUntil(reminder.expiryDate);
     const statusCls = getAlertStatus(days);
     const countdownText = getCountdownText(days);
@@ -904,7 +908,7 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                         <button type="button" id="edit-custom-email1-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
                     </div>
                     <select id="edit-email1" class="filter-select w-full">
-                        ${buildEmailOptions(allowedUsers, initialPrimary)}
+                        ${buildEmailOptions(allowedUsers, initialPrimary, '', customEmails)}
                     </select>
                 </div>
                 <div class="form-group">
@@ -913,7 +917,7 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                         <button type="button" id="edit-custom-email2-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
                     </div>
                     <select id="edit-email2" class="filter-select w-full">
-                        ${buildEmailOptions(allowedUsers, initialSecondary)}
+                        ${buildEmailOptions(allowedUsers, initialSecondary, '', customEmails)}
                     </select>
                 </div>
             </div>
@@ -961,27 +965,37 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             const email1Select = body.querySelector('#edit-email1');
             const email2Select = body.querySelector('#edit-email2');
 
-            body.querySelector('#edit-custom-email1-btn')?.addEventListener('click', () => {
-                const manual = prompt('Wpisz nowy adres e-mail:');
+            body.querySelector('#edit-custom-email1-btn')?.addEventListener('click', async () => {
+                const manual = prompt('Wpisz nowy prywatny adres e-mail:');
                 if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.trim())) {
-                    const clean = manual.trim();
-                    saveCustomEmail(clean);
-                    email1Select.innerHTML = buildEmailOptions(allowedUsers, clean);
-                    email1Select.value = clean;
-                    showToast(`Dodano i zapamiętano adres: ${clean}`, 'success');
+                    const clean = manual.trim().toLowerCase();
+                    try {
+                        customEmails = await addUserCustomEmail(clean);
+                        email1Select.innerHTML = buildEmailOptions(allowedUsers, clean, '', customEmails);
+                        email1Select.value = clean;
+                        email2Select.innerHTML = buildEmailOptions(allowedUsers, email2Select.value, '', customEmails);
+                        showToast(`Dodano i zapisano w chmurze adres: ${clean}`, 'success');
+                    } catch (e) {
+                        showToast('Błąd zapisu adresu: ' + e.message, 'error');
+                    }
                 } else if (manual) {
                     showToast('Nieprawidłowy format adresu e-mail.', 'warning');
                 }
             });
 
-            body.querySelector('#edit-custom-email2-btn')?.addEventListener('click', () => {
-                const manual = prompt('Wpisz dodatkowy adres e-mail:');
+            body.querySelector('#edit-custom-email2-btn')?.addEventListener('click', async () => {
+                const manual = prompt('Wpisz dodatkowy prywatny adres e-mail:');
                 if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.trim())) {
-                    const clean = manual.trim();
-                    saveCustomEmail(clean);
-                    email2Select.innerHTML = buildEmailOptions(allowedUsers, clean);
-                    email2Select.value = clean;
-                    showToast(`Dodano i zapamiętano adres: ${clean}`, 'success');
+                    const clean = manual.trim().toLowerCase();
+                    try {
+                        customEmails = await addUserCustomEmail(clean);
+                        email2Select.innerHTML = buildEmailOptions(allowedUsers, clean, '', customEmails);
+                        email2Select.value = clean;
+                        email1Select.innerHTML = buildEmailOptions(allowedUsers, email1Select.value, '', customEmails);
+                        showToast(`Dodano i zapisano w chmurze adres: ${clean}`, 'success');
+                    } catch (e) {
+                        showToast('Błąd zapisu adresu: ' + e.message, 'error');
+                    }
                 } else if (manual) {
                     showToast('Nieprawidłowy format adresu e-mail.', 'warning');
                 }
@@ -1070,8 +1084,8 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 const saveBtn = footer.querySelector('#modal-save-btn');
                 saveBtn.classList.add('loading');
 
-                if (email1) saveCustomEmail(email1);
-                if (email2) saveCustomEmail(email2);
+                if (email1) addUserCustomEmail(email1).catch(() => {});
+                if (email2) addUserCustomEmail(email2).catch(() => {});
 
                 try {
                     await updateReminder(reminder.id, {
@@ -1358,11 +1372,12 @@ window.handleSendNotification = async (id) => {
 // ============================================================
 async function showAddReminderModal(prefillCategory) {
     // Dynamicznie importuj db do pobrania kategorii
-    const { getCategories, getAllowedUsers, addReminder } = await import('./db.js');
+    const { getCategories, getAllowedUsers, addReminder, getUserCustomEmails, addUserCustomEmail } = await import('./db.js');
     const { getUserProfile } = await import('./auth.js');
 
     const categories = await getCategories();
     const allowedUsers = await getAllowedUsers();
+    let customEmails = await getUserCustomEmails();
     const profile = await getUserProfile();
 
     const defaultEmail = profile?.defaultPrimaryEmail || currentUser?.email || '';
@@ -1465,7 +1480,7 @@ async function showAddReminderModal(prefillCategory) {
                             <button type="button" id="add-custom-email1-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
                         </div>
                         <select id="add-email1" class="filter-select w-full">
-                            ${buildEmailOptions(allowedUsers, defaultEmail)}
+                            ${buildEmailOptions(allowedUsers, defaultEmail, '', customEmails)}
                         </select>
                     </div>
                     <div class="form-group">
@@ -1474,7 +1489,7 @@ async function showAddReminderModal(prefillCategory) {
                             <button type="button" id="add-custom-email2-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
                         </div>
                         <select id="add-email2" class="filter-select w-full">
-                            ${buildEmailOptions(allowedUsers, profile?.defaultSecondaryEmail || '')}
+                            ${buildEmailOptions(allowedUsers, profile?.defaultSecondaryEmail || '', '', customEmails)}
                         </select>
                     </div>
                 </div>
@@ -1564,6 +1579,45 @@ async function showAddReminderModal(prefillCategory) {
                 renderParticipants();
             });
 
+            const addEmail1Select = body.querySelector('#add-email1');
+            const addEmail2Select = body.querySelector('#add-email2');
+
+            body.querySelector('#add-custom-email1-btn')?.addEventListener('click', async () => {
+                const manual = prompt('Wpisz nowy prywatny adres e-mail:');
+                if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.trim())) {
+                    const clean = manual.trim().toLowerCase();
+                    try {
+                        customEmails = await addUserCustomEmail(clean);
+                        addEmail1Select.innerHTML = buildEmailOptions(allowedUsers, clean, '', customEmails);
+                        addEmail1Select.value = clean;
+                        addEmail2Select.innerHTML = buildEmailOptions(allowedUsers, addEmail2Select.value, '', customEmails);
+                        showToast(`Dodano i zapisano w chmurze adres: ${clean}`, 'success');
+                    } catch (e) {
+                        showToast('Błąd zapisu adresu: ' + e.message, 'error');
+                    }
+                } else if (manual) {
+                    showToast('Nieprawidłowy format adresu e-mail.', 'warning');
+                }
+            });
+
+            body.querySelector('#add-custom-email2-btn')?.addEventListener('click', async () => {
+                const manual = prompt('Wpisz dodatkowy prywatny adres e-mail:');
+                if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.trim())) {
+                    const clean = manual.trim().toLowerCase();
+                    try {
+                        customEmails = await addUserCustomEmail(clean);
+                        addEmail2Select.innerHTML = buildEmailOptions(allowedUsers, clean, '', customEmails);
+                        addEmail2Select.value = clean;
+                        addEmail1Select.innerHTML = buildEmailOptions(allowedUsers, addEmail1Select.value, '', customEmails);
+                        showToast(`Dodano i zapisano w chmurze adres: ${clean}`, 'success');
+                    } catch (e) {
+                        showToast('Błąd zapisu adresu: ' + e.message, 'error');
+                    }
+                } else if (manual) {
+                    showToast('Nieprawidłowy format adresu e-mail.', 'warning');
+                }
+            });
+
             // Alert chip add
             const chipsContainer = body.querySelector('#add-alert-chips');
             body.querySelector('#add-alert-chip-btn').addEventListener('click', () => {
@@ -1618,8 +1672,8 @@ async function showAddReminderModal(prefillCategory) {
                 const alertDays = Array.from(chips).map(c => parseInt(c.dataset.days)).filter(d => d > 0);
                 alertDays.sort((a, b) => b - a); // malejąco
 
-                if (email1) saveCustomEmail(email1);
-                if (email2) saveCustomEmail(email2);
+                if (email1) addUserCustomEmail(email1).catch(() => {});
+                if (email2) addUserCustomEmail(email2).catch(() => {});
 
                 const cat = categories.find(c => c.id === categoryId);
                 const subTypeLabel = subSelect.options[subSelect.selectedIndex]?.text || subType;

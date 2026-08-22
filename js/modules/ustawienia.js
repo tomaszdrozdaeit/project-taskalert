@@ -3,7 +3,7 @@
 // TaskAlert — System przypomnień i alertów terminowych
 // ============================================================
 
-import { getUserProfile, updateUserProfile } from '../db.js';
+import { getUserProfile, updateUserProfile, getUserCustomEmails, addUserCustomEmail, removeUserCustomEmail } from '../db.js';
 import { currentUser } from '../auth.js';
 
 export function render() {
@@ -65,6 +65,25 @@ function renderSettings(profile) {
                     <label for="set-email2">E-mail dodatkowy (kopia)</label>
                     <input type="email" id="set-email2" value="${escHtml(profile?.defaultSecondaryEmail || '')}" placeholder="kopia@example.com">
                 </div>
+            </div>
+        </div>
+
+        <!-- Prywatna lista e-maili użytkownika -->
+        <div class="card animate-in" style="margin-bottom:20px;">
+            <h3 style="font-size:1rem;font-weight:700;margin-bottom:16px;">📋 Moje prywatne adresy e-mail do powiadomień</h3>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:14px;">
+                Adresy zapisane w Twoim profilu w chmurze — synchronizowane automatycznie na wszystkich Twoich urządzeniach (telefon, komputer).
+                Pojawiają się one na liście wyboru podczas tworzenia i edycji alertów.
+            </p>
+            <div id="custom-emails-container" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+                <div class="text-muted" style="font-size:0.85rem;">Ładowanie listy adresów...</div>
+            </div>
+            <div style="display:flex;gap:8px;max-width:480px;">
+                <input type="email" id="new-custom-email-input" placeholder="dodatkowy.email@firma.pl" style="flex:1;">
+                <button class="btn btn-secondary" id="add-custom-email-btn" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="width:16px;height:16px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Dodaj</span>
+                </button>
             </div>
         </div>
 
@@ -150,6 +169,66 @@ function renderSettings(profile) {
 
     chipsContainer?.addEventListener('click', (e) => {
         if (e.target.classList.contains('chip-remove')) e.target.closest('.alert-chip').remove();
+    });
+
+    // Custom emails interactive management
+    const customEmailsContainer = document.getElementById('custom-emails-container');
+    const newEmailInput = document.getElementById('new-custom-email-input');
+    const addEmailBtn = document.getElementById('add-custom-email-btn');
+
+    const renderCustomEmails = async () => {
+        if (!customEmailsContainer) return;
+        try {
+            const emails = await getUserCustomEmails();
+            if (emails.length === 0) {
+                customEmailsContainer.innerHTML = `<span style="font-size:0.85rem;color:var(--text-muted);font-style:italic;">Brak dodatkowych adresów. Wpisz e-mail poniżej, aby dodać go do swojej listy.</span>`;
+                return;
+            }
+            customEmailsContainer.innerHTML = emails.map(e => `
+                <span class="category-badge" style="display:inline-flex;align-items:center;gap:6px;padding:6px 12px;font-size:0.85rem;background:var(--bg-card-hover);border:1px solid var(--border-color);color:var(--text-primary);border-radius:20px;">
+                    <span>📧 ${escHtml(e)}</span>
+                    <button type="button" class="remove-custom-email-btn" data-email="${escHtml(e)}" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1rem;padding:0;line-height:1;margin-left:2px;" title="Usuń z listy">×</button>
+                </span>
+            `).join('');
+        } catch (err) {
+            customEmailsContainer.innerHTML = `<span style="color:var(--status-danger);font-size:0.85rem;">Błąd ładowania adresów: ${escHtml(err.message)}</span>`;
+        }
+    };
+
+    renderCustomEmails();
+
+    addEmailBtn?.addEventListener('click', async () => {
+        const val = newEmailInput?.value?.trim().toLowerCase();
+        if (!val) return;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+            window.TaskAlert?.showToast?.('Nieprawidłowy format adresu e-mail.', 'warning');
+            return;
+        }
+        addEmailBtn.classList.add('loading');
+        try {
+            await addUserCustomEmail(val);
+            if (newEmailInput) newEmailInput.value = '';
+            window.TaskAlert?.showToast?.(`Dodano adres: ${val}`, 'success');
+            await renderCustomEmails();
+        } catch (err) {
+            window.TaskAlert?.showToast?.('Błąd zapisu adresu: ' + err.message, 'error');
+        } finally {
+            addEmailBtn.classList.remove('loading');
+        }
+    });
+
+    customEmailsContainer?.addEventListener('click', async (e) => {
+        const btn = e.target.closest('.remove-custom-email-btn');
+        if (btn && btn.dataset.email) {
+            const emailToRemove = btn.dataset.email;
+            try {
+                await removeUserCustomEmail(emailToRemove);
+                window.TaskAlert?.showToast?.(`Usunięto adres: ${emailToRemove}`, 'info');
+                await renderCustomEmails();
+            } catch (err) {
+                window.TaskAlert?.showToast?.('Błąd usuwania: ' + err.message, 'error');
+            }
+        }
     });
 
     // Dark mode toggle

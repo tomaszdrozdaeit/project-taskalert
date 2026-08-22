@@ -7,7 +7,7 @@ import { db, auth } from './firebase-config.js';
 import {
     collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc,
     query, where, orderBy, onSnapshot, serverTimestamp, Timestamp,
-    writeBatch
+    writeBatch, arrayUnion, arrayRemove
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { buildMailPayload } from './mail-utils.mjs';
 
@@ -610,6 +610,75 @@ export async function getUserProfile() {
     const profileRef = doc(db, 'users', uid(), 'profile', 'main');
     const snap = await getDoc(profileRef);
     return snap.exists() ? snap.data() : null;
+}
+
+// ============================================================
+// CUSTOM RECIPIENT EMAILS (Prywatna lista e-mail w profilu Firestore)
+// ============================================================
+export async function getUserCustomEmails() {
+    try {
+        const profile = await getUserProfile();
+        const emails = profile?.customEmails || [];
+        try {
+            localStorage.setItem('taskalert_custom_emails', JSON.stringify(emails));
+        } catch (e) {}
+        return Array.isArray(emails) ? emails : [];
+    } catch (err) {
+        console.warn('[DB] Błąd pobierania customEmails z profilu:', err);
+        try {
+            const cached = localStorage.getItem('taskalert_custom_emails');
+            return cached ? JSON.parse(cached) : [];
+        } catch (e) {
+            return [];
+        }
+    }
+}
+
+export async function addUserCustomEmail(email) {
+    if (!email) return [];
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+        throw new Error('Nieprawidłowy format adresu e-mail.');
+    }
+    const currentUid = uid();
+    if (!currentUid) throw new Error('Użytkownik nie jest zalogowany.');
+
+    const profileRef = doc(db, 'users', currentUid, 'profile', 'main');
+    await setDoc(profileRef, {
+        customEmails: arrayUnion(clean),
+        updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    try {
+        const cached = JSON.parse(localStorage.getItem('taskalert_custom_emails') || '[]');
+        if (!cached.includes(clean)) {
+            cached.push(clean);
+            localStorage.setItem('taskalert_custom_emails', JSON.stringify(cached));
+        }
+    } catch (e) {}
+
+    return getUserCustomEmails();
+}
+
+export async function removeUserCustomEmail(email) {
+    if (!email) return [];
+    const clean = email.trim().toLowerCase();
+    const currentUid = uid();
+    if (!currentUid) throw new Error('Użytkownik nie jest zalogowany.');
+
+    const profileRef = doc(db, 'users', currentUid, 'profile', 'main');
+    await updateDoc(profileRef, {
+        customEmails: arrayRemove(clean),
+        updatedAt: serverTimestamp()
+    });
+
+    try {
+        let cached = JSON.parse(localStorage.getItem('taskalert_custom_emails') || '[]');
+        cached = cached.filter(e => e !== clean);
+        localStorage.setItem('taskalert_custom_emails', JSON.stringify(cached));
+    } catch (e) {}
+
+    return getUserCustomEmails();
 }
 
 // ============================================================

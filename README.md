@@ -10,10 +10,11 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 
 - **Frontend**: Czysty HTML5, CSS3 (Light/Dark mode z CSS Custom Properties i glassmorphism) oraz JavaScript (ES Modules, SPA Router z lazy-loadingiem).
 - **Backend (Baza danych & Auth)**: Google Firebase v10.12.0 (Firestore + Authentication via Email/Password oraz Google Sign-In z automatyczną weryfikacją whitelisty `allowedUsers`).
-- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v36`, wykrywaniem platformy (Android/iOS/macOS), dedykowanym banerem instalacyjnym oraz pełnym wsparciem safe-area i przewijania menu na urządzeniach mobilnych.
+- **PWA (Offline & Mobile Support)**: Service Worker z wersjonowanym systemem pamięci podręcznej — `taskalert-v37`, wykrywaniem platformy (Android/iOS/macOS), dedykowanym banerem instalacyjnym oraz pełnym wsparciem safe-area i przewijania menu na urządzeniach mobilnych.
 - **Powiadomienia PUSH**: Firebase Cloud Messaging (FCM) + Cloud Functions / GitHub Actions (Cron o 9:00 czasu polskiego `Europe/Warsaw` z obsługą czasu letniego/zimowego DST, deduplikacją po `tag: alertId`, czyszczeniem nieaktywnych tokenów FCM, akcjami drzemki 5/10 min). Dedykowana bezpieczna obsługa Androida (`ServiceWorkerRegistration.showNotification()`), monochromatyczna ikona paska stanu Android (`badge-72.png` z przezroczystością) oraz automatyczne przekierowanie po kliknięciu powiadomienia bezpośrednio do okna szczegółów danego alertu (`?alertId=...`).
 - **Interaktywny Pulpit & Ostatnie Działania**: Dynamiczne kafelki statystyk (Aktywne, W ciągu 30 dni, W ciągu 14 dni, Przeterminowane, Wykonane) filtrujące oś czasu po kliknięciu, wykres rozkładu kategorii oraz widget ostatnich wykonanych działań z ostatnich 7 dni.
-- **Panel Użytkownicy & Alerty Zespołowe**: Dostępny i w pełni responsywny panel zarządzania użytkownikami na mobile/Android, możliwość przypisywania zadań zespołowych także do kont nieaktywnych oraz funkcja zapamiętywania dodatkowych adresów e-mail wpisywanych ręcznie.
+- **Prywatna Lista E-maili & Synchronizacja w Chmurze**: Każdy użytkownik może dodawać i zarządzać własnymi prywatnymi adresami e-mail do powiadomień (`users/{uid}/profile/main.customEmails`), które są synchronizowane w chmurze Firestore na wszystkich urządzeniach oraz dostępne na listach wyboru we wszystkich alertach.
+- **Panel Użytkownicy & Alerty Zespołowe**: Dostępny i w pełni responsywny panel zarządzania użytkownikami na mobile/Android oraz możliwość przypisywania zadań zespołowych także do kont nieaktywnych.
 - **Panel Historia & Audyt Zdarzeń**: Interaktywny panel zarchiwizowanych alertów z możliwością otwarcia okna szczegółów każdego wykonanego zadania, pełną osią czasu zdarzeń (kto i kiedy utworzył, edytował, wysłał e-mail, przekształcił w zespołowy lub oznaczył jako wykonane) oraz eksportem do pliku CSV.
 - **E-mail Notifications**: Firebase Extension "Trigger Email from Firestore" + GitHub Actions / Node.js dobowe weryfikacje.
 - **Testy**: Automatyczne testy reguł bezpieczeństwa Firestore (`tests/firestore-rules.test.js`) + audyt bezpieczeństwa.
@@ -26,7 +27,7 @@ Aplikacja została zaprojektowana z myślą o maksymalnej użyteczności: intuic
 06_TaskAlert/
 ├── index.html                 # App Shell + ekrany logowania/rejestracji + nawigacja
 ├── manifest.json              # Manifest PWA (gcm_sender_id dla FCM + instalacja)
-├── service-worker.js          # Pamięć podręczna (cache v36) + obsługa PUSH w tle i akcji drzemki
+├── service-worker.js          # Pamięć podręczna (cache v37) + obsługa PUSH w tle i akcji drzemki
 ├── firestore.rules            # Reguły zabezpieczeń Firestore (strict owner, allowedUsers, sharedAlerts)
 ├── RESTART_HANDOVER.md        # Przewodnik restartowy dla agenta po restarcie komputera
 ├── plan_wdrozenia_taskalert_v3.pdf  # Dokumentacja wdrożeniowa
@@ -296,4 +297,4 @@ git add .
 git commit -m "Wdrożenie wersji v4 — PUSH, PWA banner, Whitelist, SharedAlerts"
 git push origin main
 ```
-Service worker korzysta z pamięci podręcznej **`taskalert-v36`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.
+Service worker korzysta z pamięci podręcznej **`taskalert-v37`**, zapewniając natychmiastową aktualizację zasobów u użytkowników.

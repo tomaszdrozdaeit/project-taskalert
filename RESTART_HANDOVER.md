@@ -61,7 +61,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v36` w `service-worker.js` oraz podbito wersje w `index.html` (`v=36`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v37` w `service-worker.js` oraz podbito wersje w `index.html` (`v=37`).
  7. **Konwersja Alertów Prywatnych na Zespołowe:**
    - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
  8. **Baner PWA i Instrukcja dla iOS oraz Mac:**
@@ -92,7 +92,11 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Dodano kafelek `Zakończone / Wykonane` na Pulpicie oraz interaktywne filtrowanie osi czasu po kliknięciu dowolnego kafelka statystyk.
    - Uruchomiono widget `Ostatnie działania (7 dni)` na Pulpicie z listą wykonanych alertów i kliknięciem do szczegółów.
    - Umożliwiono przypisywanie zadań zespołowych również do kont oznaczonych jako nieaktywne (z etykietą `(nieaktywny)`).
-   - Dodano przycisk `+ Wpisz inny` przy wyborze adresów e-mail oraz trwałe zapamiętywanie wpisanych adresów w pamięci lokalnej (`taskalert_custom_emails`).
+ 15. **Prywatna, Synchronizowana w Chmurze Lista Adresów E-mail:**
+   - Zaimplementowano przechowywanie prywatnej tablicy adresów e-mail w profilu każdego użytkownika w Firestore (`users/{uid}/profile/main.customEmails`).
+   - Dodano metody `getUserCustomEmails()`, `addUserCustomEmail(email)` i `removeUserCustomEmail(email)` w `db.js`.
+   - Zintegrowano dropdowny wyboru e-mail w oknach dodawania i edycji alertów (dedykowana grupa `📋 Moje prywatne adresy e-mail`).
+   - Dodano panel zarządzania prywatnymi adresami e-mail w zakładce *Ustawienia* (przeglądanie, dodawanie, usuwanie) z natychmiastową synchronizacją między urządzeniami.
 
 ---
 
