@@ -319,9 +319,10 @@ async function showAddTeamAlertModal() {
                         <label for="team-add-user">Dodaj osobę</label>
                         <select id="team-add-user" class="filter-select w-full">
                             <option value="">— Wybierz użytkownika —</option>
-                            ${allowedUsers.filter(u => u.isActive !== false && u.email !== currentUser.email).map(u =>
-                                `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.uid || '')}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)} (${escHtml(u.email)})</option>`
-                            ).join('')}
+                            ${allowedUsers.filter(u => (u.email || '').toLowerCase() !== (currentUser?.email || '').toLowerCase()).map(u => {
+                                const inactiveSuffix = u.isActive === false ? ' (nieaktywny)' : '';
+                                return `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.uid || u.id || '')}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)}${inactiveSuffix} (${escHtml(u.email)})</option>`;
+                            }).join('')}
                         </select>
                     </div>
                     <div class="form-group" style="flex:1;">

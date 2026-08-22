@@ -61,7 +61,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v35` w `service-worker.js` oraz podbito wersje w `index.html` (`v=35`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v36` w `service-worker.js` oraz podbito wersje w `index.html` (`v=36`).
  7. **Konwersja Alertów Prywatnych na Zespołowe:**
    - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
  8. **Baner PWA i Instrukcja dla iOS oraz Mac:**
@@ -86,6 +86,13 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Dodano możliwość kliknięcia w dowolny alert na liście w panelu Historia, aby otworzyć okno szczegółów i pełną oś czasu zdarzeń.
    - Zaimplementowano rejestrowanie i wyświetlanie tożsamości wykonawcy/autora (`byName`, `byEmail`, `byUid`) dla wszystkich typów operacji (utworzenie, edycja, wykonanie, konwersja na zespołowy, wysyłka e-mail).
    - Wzbogacono widok karty w historii o szybki podgląd ostatnich zdarzeń, badge wykonawcy oraz akcje (szczegóły, e-mail, usunięcie).
+ 14. **Poprawki Mobilne (Android), Pulpitu i Użytkowników:**
+   - Naprawiono widoczność przycisku "Dodaj użytkownika" na telefonach/Androidzie poprzez przeniesienie go do nagłówka `page-header-actions` i dodanie przycisku `filter-toggle-users`.
+   - Rozwiązano problem przewijania menu bocznego na Androidzie (`height: 100dvh`, `overscroll-behavior-y: contain`, `safe-area-inset-bottom` z dodatkowym marginesem dolnym).
+   - Dodano kafelek `Zakończone / Wykonane` na Pulpicie oraz interaktywne filtrowanie osi czasu po kliknięciu dowolnego kafelka statystyk.
+   - Uruchomiono widget `Ostatnie działania (7 dni)` na Pulpicie z listą wykonanych alertów i kliknięciem do szczegółów.
+   - Umożliwiono przypisywanie zadań zespołowych również do kont oznaczonych jako nieaktywne (z etykietą `(nieaktywny)`).
+   - Dodano przycisk `+ Wpisz inny` przy wyborze adresów e-mail oraz trwałe zapamiętywanie wpisanych adresów w pamięci lokalnej (`taskalert_custom_emails`).
 
 ---
 

@@ -675,6 +675,7 @@ img {
     left: 0;
     width: var(--sidebar-width);
     height: 100vh;
+    height: 100dvh;
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border-color);
     display: flex;
@@ -683,6 +684,8 @@ img {
     transition: transform var(--transition-base);
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
 }
 
 .sidebar-header {
@@ -922,6 +925,8 @@ img {
     transition: all var(--transition-base);
     position: relative;
     overflow: hidden;
+    cursor: pointer;
+    user-select: none;
 }
 
 .stat-card::before {
@@ -937,11 +942,19 @@ img {
 .stat-card.stat-total::before { background: var(--accent-primary); }
 .stat-card.stat-warning::before { background: var(--status-warning); }
 .stat-card.stat-danger::before { background: var(--status-danger); }
-.stat-card.stat-ok::before { background: var(--status-ok); }
+.stat-card.stat-ok::before { background: var(--status-danger); }
+.stat-card.stat-completed::before { background: var(--status-ok); }
 
 .stat-card:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
+    border-color: var(--accent-primary);
+}
+
+.stat-card.active {
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 2px rgba(79, 140, 255, 0.25), var(--shadow-md);
+    background: var(--bg-card-hover);
 }
 
 .stat-icon {
@@ -1730,10 +1743,21 @@ img {
 
     .sidebar {
         transform: translateX(-100%);
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100dvh;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
     }
 
     .sidebar.open {
         transform: translateX(0);
+    }
+
+    .sidebar-footer {
+        padding: 16px 16px max(32px, calc(env(safe-area-inset-bottom, 16px) + 28px)) 16px;
+        margin-top: auto;
     }
 
     .main-content {

@@ -713,20 +713,57 @@ export function showConfirm(message, title = 'Potwierdzenie', { type = 'warning'
     });
 }
 
-// Helper for email dropdown options from allowedUsers
+const CUSTOM_EMAILS_KEY = 'taskalert_custom_emails';
+
+export function getCustomEmails() {
+    try {
+        const saved = localStorage.getItem(CUSTOM_EMAILS_KEY);
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        return [];
+    }
+}
+
+export function saveCustomEmail(email) {
+    if (!email) return;
+    const clean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return;
+    const list = getCustomEmails();
+    if (!list.includes(clean)) {
+        list.push(clean);
+        localStorage.setItem(CUSTOM_EMAILS_KEY, JSON.stringify(list));
+    }
+}
+
+// Helper for email dropdown options from allowedUsers + custom remembered emails
 function buildEmailOptions(allowedUsers = [], currentEmail = '', defaultEmail = '') {
     const selected = (currentEmail || defaultEmail || '').trim().toLowerCase();
     let options = `<option value="">— Wybierz adres e-mail —</option>`;
     let found = false;
 
+    // 1. Użytkownicy z bazy
     (allowedUsers || []).forEach(u => {
         const uEmail = (u.email || '').trim();
         if (!uEmail) return;
         const isSel = (uEmail.toLowerCase() === selected);
         if (isSel) found = true;
-        const displayName = u.name ? `${u.name} (${uEmail})` : uEmail;
+        const inactiveSuffix = u.isActive === false ? ' (nieaktywny)' : '';
+        const displayName = u.name ? `${u.name} (${uEmail})${inactiveSuffix}` : `${uEmail}${inactiveSuffix}`;
         options += `<option value="${uEmail.replace(/"/g, '&quot;')}" ${isSel ? 'selected' : ''}>${displayName.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</option>`;
     });
+
+    // 2. Zapamiętane dodatkowe adresy
+    const customList = getCustomEmails();
+    const customOnly = customList.filter(ce => !(allowedUsers || []).some(u => (u.email || '').toLowerCase() === ce));
+    if (customOnly.length > 0) {
+        options += `<optgroup label="Zapamiętane adresy e-mail">`;
+        customOnly.forEach(ce => {
+            const isSel = (ce === selected);
+            if (isSel) found = true;
+            options += `<option value="${ce.replace(/"/g, '&quot;')}" ${isSel ? 'selected' : ''}>${ce}</option>`;
+        });
+        options += `</optgroup>`;
+    }
 
     if (selected && !found) {
         const val = (currentEmail || defaultEmail).trim();
@@ -862,13 +899,19 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
 
             <div class="form-row">
                 <div class="form-group">
-                    <label for="edit-email1">E-mail główny</label>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <label for="edit-email1">E-mail główny</label>
+                        <button type="button" id="edit-custom-email1-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
+                    </div>
                     <select id="edit-email1" class="filter-select w-full">
                         ${buildEmailOptions(allowedUsers, initialPrimary)}
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="edit-email2">E-mail dodatkowy</label>
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                        <label for="edit-email2">E-mail dodatkowy</label>
+                        <button type="button" id="edit-custom-email2-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
+                    </div>
                     <select id="edit-email2" class="filter-select w-full">
                         ${buildEmailOptions(allowedUsers, initialSecondary)}
                     </select>
@@ -914,6 +957,35 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             };
             catSelect.addEventListener('change', populateSubtypes);
             populateSubtypes();
+
+            const email1Select = body.querySelector('#edit-email1');
+            const email2Select = body.querySelector('#edit-email2');
+
+            body.querySelector('#edit-custom-email1-btn')?.addEventListener('click', () => {
+                const manual = prompt('Wpisz nowy adres e-mail:');
+                if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.trim())) {
+                    const clean = manual.trim();
+                    saveCustomEmail(clean);
+                    email1Select.innerHTML = buildEmailOptions(allowedUsers, clean);
+                    email1Select.value = clean;
+                    showToast(`Dodano i zapamiętano adres: ${clean}`, 'success');
+                } else if (manual) {
+                    showToast('Nieprawidłowy format adresu e-mail.', 'warning');
+                }
+            });
+
+            body.querySelector('#edit-custom-email2-btn')?.addEventListener('click', () => {
+                const manual = prompt('Wpisz dodatkowy adres e-mail:');
+                if (manual && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(manual.trim())) {
+                    const clean = manual.trim();
+                    saveCustomEmail(clean);
+                    email2Select.innerHTML = buildEmailOptions(allowedUsers, clean);
+                    email2Select.value = clean;
+                    showToast(`Dodano i zapamiętano adres: ${clean}`, 'success');
+                } else if (manual) {
+                    showToast('Nieprawidłowy format adresu e-mail.', 'warning');
+                }
+            });
 
             const chipsContainer = body.querySelector('#edit-alert-chips');
             body.querySelector('#edit-alert-chip-btn').addEventListener('click', () => {
@@ -997,6 +1069,9 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
 
                 const saveBtn = footer.querySelector('#modal-save-btn');
                 saveBtn.classList.add('loading');
+
+                if (email1) saveCustomEmail(email1);
+                if (email2) saveCustomEmail(email2);
 
                 try {
                     await updateReminder(reminder.id, {
@@ -1090,9 +1165,10 @@ async function showConvertToTeamModal(reminder) {
                         <label for="convert-add-user">Dodaj osobę z bazy</label>
                         <select id="convert-add-user" class="filter-select w-full">
                             <option value="">— Wybierz użytkownika —</option>
-                            ${allowedUsers.filter(u => u.isActive !== false && (u.email || '').toLowerCase() !== currentEmail.toLowerCase()).map(u =>
-                                `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.id || u.email)}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)} (${escHtml(u.email)})</option>`
-                            ).join('')}
+                            ${allowedUsers.filter(u => (u.email || '').toLowerCase() !== currentEmail.toLowerCase()).map(u => {
+                                const inactiveSuffix = u.isActive === false ? ' (nieaktywny)' : '';
+                                return `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.id || u.email)}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)}${inactiveSuffix} (${escHtml(u.email)})</option>`;
+                            }).join('')}
                         </select>
                     </div>
                     <div class="form-group" style="flex:1;">
@@ -1359,9 +1435,10 @@ async function showAddReminderModal(prefillCategory) {
                             <label for="add-user-select">Dodaj osobę z bazy</label>
                             <select id="add-user-select" class="filter-select w-full">
                                 <option value="">— Wybierz użytkownika —</option>
-                                ${allowedUsers.filter(u => u.isActive !== false && u.email !== currentUser?.email).map(u =>
-                                    `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.id || u.email)}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)} (${escHtml(u.email)})</option>`
-                                ).join('')}
+                                ${allowedUsers.filter(u => (u.email || '').toLowerCase() !== (currentUser?.email || '').toLowerCase()).map(u => {
+                                    const inactiveSuffix = u.isActive === false ? ' (nieaktywny)' : '';
+                                    return `<option value="${escHtml(u.email)}" data-uid="${escHtml(u.id || u.email)}" data-name="${escHtml(u.name || '')}">${escHtml(u.name || u.email)}${inactiveSuffix} (${escHtml(u.email)})</option>`;
+                                }).join('')}
                             </select>
                         </div>
                         <div class="form-group" style="flex:1;">
@@ -1383,13 +1460,19 @@ async function showAddReminderModal(prefillCategory) {
             <div class="collapsible-content" id="add-advanced-content">
                 <div class="form-row" style="margin-top:12px">
                     <div class="form-group">
-                        <label for="add-email1">E-mail główny</label>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                            <label for="add-email1">E-mail główny</label>
+                            <button type="button" id="add-custom-email1-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
+                        </div>
                         <select id="add-email1" class="filter-select w-full">
                             ${buildEmailOptions(allowedUsers, defaultEmail)}
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="add-email2">E-mail dodatkowy</label>
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+                            <label for="add-email2">E-mail dodatkowy</label>
+                            <button type="button" id="add-custom-email2-btn" style="font-size:0.75rem;color:var(--accent-primary);cursor:pointer;background:none;border:none;padding:0;font-weight:600;">+ Wpisz inny</button>
+                        </div>
                         <select id="add-email2" class="filter-select w-full">
                             ${buildEmailOptions(allowedUsers, profile?.defaultSecondaryEmail || '')}
                         </select>
@@ -1473,9 +1556,8 @@ async function showAddReminderModal(prefillCategory) {
                     role: roleSelect.value
                 });
 
-                const email1Select = body.querySelector('#add-email1');
-                if (email1Select && (!email1Select.value || email1Select.value === defaultEmail)) {
-                    email1Select.value = email;
+                if (addEmail1Select && (!addEmail1Select.value || addEmail1Select.value === defaultEmail)) {
+                    addEmail1Select.value = email;
                 }
 
                 userSelect.value = '';
@@ -1535,6 +1617,9 @@ async function showAddReminderModal(prefillCategory) {
                 const chips = chipsContainer.querySelectorAll('.alert-chip');
                 const alertDays = Array.from(chips).map(c => parseInt(c.dataset.days)).filter(d => d > 0);
                 alertDays.sort((a, b) => b - a); // malejąco
+
+                if (email1) saveCustomEmail(email1);
+                if (email2) saveCustomEmail(email2);
 
                 const cat = categories.find(c => c.id === categoryId);
                 const subTypeLabel = subSelect.options[subSelect.selectedIndex]?.text || subType;

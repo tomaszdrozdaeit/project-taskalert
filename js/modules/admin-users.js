@@ -4,7 +4,8 @@
 // ============================================================
 
 import { onAllowedUsersChange, getAllowedUsers, addAllowedUser, updateAllowedUser, deleteAllowedUser } from '../db.js';
-import { SUPER_ADMIN_EMAIL, currentUser } from '../auth.js';
+import { SUPER_ADMIN_EMAIL, currentUser, getUserRole } from '../auth.js';
+import { auth } from '../firebase-config.js';
 
 let unsubscribe = null;
 
@@ -23,12 +24,23 @@ const ROLE_LABELS = {
 
 export function render() {
     return `
-        <div class="page-header animate-in">
-            <h1 class="page-title">👥 Użytkownicy</h1>
-            <p class="page-subtitle">Zarządzanie dostępem do aplikacji — dodawaj, edytuj i dezaktywuj konta</p>
+        <div class="page-header page-header-flex animate-in">
+            <div>
+                <h1 class="page-title">👥 Użytkownicy</h1>
+                <p class="page-subtitle">Zarządzanie dostępem do aplikacji — dodawaj, edytuj i dezaktywuj konta</p>
+            </div>
+            <div class="page-header-actions">
+                <button class="icon-btn-action" id="filter-toggle-users" title="Szukaj i filtruj" aria-label="Szukaj i filtruj" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+                <button class="btn btn-primary" id="add-user-btn" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    <span>Dodaj użytkownika</span>
+                </button>
+            </div>
         </div>
 
-        <div class="filter-bar animate-in">
+        <div class="filter-bar animate-in" id="filter-bar-users">
             <div class="search-input-wrapper">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input type="text" id="user-search" placeholder="Szukaj po nazwie lub e-mail...">
@@ -44,10 +56,6 @@ export function render() {
                 <option value="active">🟢 Aktywni</option>
                 <option value="blocked">🔴 Zablokowani</option>
             </select>
-            <button class="btn btn-primary" id="add-user-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>Dodaj użytkownika</span>
-            </button>
         </div>
 
         <div class="card animate-in" style="margin-bottom:20px;">
@@ -61,14 +69,27 @@ export function render() {
 
 export function init() {
     const addBtn = document.getElementById('add-user-btn');
+    const filterToggleBtn = document.getElementById('filter-toggle-users');
+    const filterBar = document.getElementById('filter-bar-users');
     const searchInput = document.getElementById('user-search');
     const roleFilter = document.getElementById('user-role-filter');
     const statusFilter = document.getElementById('user-status-filter');
 
+    if (filterToggleBtn && filterBar) {
+        filterToggleBtn.addEventListener('click', () => {
+            filterBar.classList.toggle('filter-bar-expanded');
+            filterToggleBtn.classList.toggle('active');
+            if (filterBar.classList.contains('filter-bar-expanded') && searchInput) {
+                searchInput.focus();
+            }
+        });
+    }
+
     // Sprawdź czy użytkownik ma uprawnienia admin / super-admin
-    const currentEmail = (currentUser?.email || '').trim().toLowerCase();
+    const authUser = auth.currentUser;
+    const currentEmail = (authUser?.email || currentUser?.email || '').trim().toLowerCase();
     const isSuperAdmin = currentEmail === SUPER_ADMIN_EMAIL.toLowerCase();
-    const userRole = window._taskAlertUserRole || (isSuperAdmin ? 'super-admin' : 'user');
+    let userRole = window._taskAlertUserRole || (isSuperAdmin ? 'super-admin' : 'user');
 
     if (userRole !== 'admin' && userRole !== 'super-admin' && !isSuperAdmin) {
         document.getElementById('users-list').innerHTML = `
@@ -78,6 +99,7 @@ export function init() {
                 <p class="empty-state-text">Tylko administratorzy mogą zarządzać listą użytkowników.</p>
             </div>`;
         if (addBtn) addBtn.style.display = 'none';
+        if (filterToggleBtn) filterToggleBtn.style.display = 'none';
         return;
     }
 
