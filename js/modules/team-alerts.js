@@ -303,7 +303,13 @@ async function showAddTeamAlertModal() {
             <div class="form-row">
                 <div class="form-group">
                     <label for="team-recurrence">Interwał powtarzania (mies.)</label>
-                    <input type="number" id="team-recurrence" value="0" min="0" max="120">
+                    <input type="number" id="team-recurrence" value="12" min="0" max="120" placeholder="0 = jednorazowe">
+                    <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="team-is-oneoff" style="cursor:pointer;width:15px;height:15px;">
+                        <label for="team-is-oneoff" style="font-size:0.8rem;color:var(--text-secondary);cursor:pointer;user-select:none;margin-bottom:0;font-weight:500;">
+                            Alert jednorazowy (brak automatycznego odnawiania)
+                        </label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="team-notes">Notatki</label>
@@ -390,12 +396,41 @@ async function showAddTeamAlertModal() {
                 renderParticipants();
             });
 
+            const teamRecurrenceInput = body.querySelector('#team-recurrence');
+            const teamIsOneOffCheckbox = body.querySelector('#team-is-oneoff');
+
+            if (teamIsOneOffCheckbox && teamRecurrenceInput) {
+                teamIsOneOffCheckbox.addEventListener('change', () => {
+                    if (teamIsOneOffCheckbox.checked) {
+                        teamRecurrenceInput.dataset.prevVal = teamRecurrenceInput.value || '12';
+                        teamRecurrenceInput.value = '0';
+                        teamRecurrenceInput.disabled = true;
+                        teamRecurrenceInput.style.opacity = '0.6';
+                    } else {
+                        teamRecurrenceInput.disabled = false;
+                        teamRecurrenceInput.style.opacity = '1';
+                        teamRecurrenceInput.value = (teamRecurrenceInput.dataset.prevVal && teamRecurrenceInput.dataset.prevVal !== '0') ? teamRecurrenceInput.dataset.prevVal : '12';
+                    }
+                });
+                teamRecurrenceInput.addEventListener('input', () => {
+                    const val = parseInt(teamRecurrenceInput.value) || 0;
+                    if (val === 0) {
+                        teamIsOneOffCheckbox.checked = true;
+                        teamRecurrenceInput.disabled = true;
+                        teamRecurrenceInput.style.opacity = '0.6';
+                    } else {
+                        teamIsOneOffCheckbox.checked = false;
+                    }
+                });
+            }
+
             footer.querySelector('#modal-cancel-btn').addEventListener('click', window.TaskAlert.closeModal);
             footer.querySelector('#modal-save-btn').addEventListener('click', async () => {
                 const title = body.querySelector('#team-title').value.trim();
                 const categoryId = body.querySelector('#team-category').value;
                 const expiryStr = body.querySelector('#team-expiry').value;
-                const recurrence = parseInt(body.querySelector('#team-recurrence').value) || 0;
+                const isOneOff = teamIsOneOffCheckbox?.checked || false;
+                const recurrence = isOneOff ? 0 : (parseInt(teamRecurrenceInput?.value) || 0);
                 const notes = body.querySelector('#team-notes').value.trim();
 
                 if (!title) { window.TaskAlert.showToast('Podaj tytuł.', 'warning'); return; }
@@ -415,6 +450,7 @@ async function showAddTeamAlertModal() {
                         categoryName: cat?.name || '',
                         expiryDate: new Date(expiryStr),
                         recurrenceMonths: recurrence,
+                        isOneOff: isOneOff || recurrence === 0,
                         notes,
                         description: notes,
                         primaryEmail: executorObj?.email || '',

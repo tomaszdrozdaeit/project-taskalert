@@ -889,7 +889,13 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 </div>
                 <div class="form-group">
                     <label for="edit-recurrence">Interwał powtarzania (mies.)</label>
-                    <input type="number" id="edit-recurrence" value="${reminder.recurrenceMonths || 0}" min="0" max="120">
+                    <input type="number" id="edit-recurrence" value="${reminder.recurrenceMonths || 0}" min="0" max="120" placeholder="0 = jednorazowe">
+                    <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="edit-is-oneoff" ${(!reminder.recurrenceMonths || reminder.recurrenceMonths === 0 || reminder.isOneOff) ? 'checked' : ''} style="cursor:pointer;width:15px;height:15px;">
+                        <label for="edit-is-oneoff" style="font-size:0.8rem;color:var(--text-secondary);cursor:pointer;user-select:none;margin-bottom:0;font-weight:500;">
+                            Alert jednorazowy (brak automatycznego odnawiania)
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -953,6 +959,37 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
             }
             const catSelect = body.querySelector('#edit-category');
             const subSelect = body.querySelector('#edit-subtype');
+            const editRecurrenceInput = body.querySelector('#edit-recurrence');
+            const editIsOneOffCheckbox = body.querySelector('#edit-is-oneoff');
+
+            if (editIsOneOffCheckbox && editRecurrenceInput) {
+                if (editIsOneOffCheckbox.checked) {
+                    editRecurrenceInput.disabled = true;
+                    editRecurrenceInput.style.opacity = '0.6';
+                }
+                editIsOneOffCheckbox.addEventListener('change', () => {
+                    if (editIsOneOffCheckbox.checked) {
+                        editRecurrenceInput.dataset.prevVal = editRecurrenceInput.value || '12';
+                        editRecurrenceInput.value = '0';
+                        editRecurrenceInput.disabled = true;
+                        editRecurrenceInput.style.opacity = '0.6';
+                    } else {
+                        editRecurrenceInput.disabled = false;
+                        editRecurrenceInput.style.opacity = '1';
+                        editRecurrenceInput.value = (editRecurrenceInput.dataset.prevVal && editRecurrenceInput.dataset.prevVal !== '0') ? editRecurrenceInput.dataset.prevVal : '12';
+                    }
+                });
+                editRecurrenceInput.addEventListener('input', () => {
+                    const val = parseInt(editRecurrenceInput.value) || 0;
+                    if (val === 0) {
+                        editIsOneOffCheckbox.checked = true;
+                        editRecurrenceInput.disabled = true;
+                        editRecurrenceInput.style.opacity = '0.6';
+                    } else {
+                        editIsOneOffCheckbox.checked = false;
+                    }
+                });
+            }
 
             const populateSubtypes = () => {
                 const selectedCat = categories.find(c => c.id === catSelect.value || c.name === catSelect.value);
@@ -1066,7 +1103,8 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                 const categoryId = catSelect.value;
                 const subType = subSelect.value;
                 const expiryStr = body.querySelector('#edit-expiry').value;
-                const recurrence = parseInt(body.querySelector('#edit-recurrence').value) || 0;
+                const isOneOff = editIsOneOffCheckbox?.checked || false;
+                const recurrence = isOneOff ? 0 : (parseInt(editRecurrenceInput?.value) || 0);
                 const email1 = body.querySelector('#edit-email1').value.trim();
                 const email2 = body.querySelector('#edit-email2').value.trim();
                 const notes = body.querySelector('#edit-notes').value.trim();
@@ -1096,6 +1134,7 @@ export async function showReminderDetailsModal(reminderId, reminderData) {
                         subTypeLabel,
                         expiryDate: new Date(expiryStr),
                         recurrenceMonths: recurrence,
+                        isOneOff: isOneOff || recurrence === 0,
                         alertDays,
                         primaryEmail: email1,
                         secondaryEmail: email2,
@@ -1426,6 +1465,12 @@ async function showAddReminderModal(prefillCategory) {
                 <div class="form-group">
                     <label for="add-recurrence">Interwał powtarzania (mies.)</label>
                     <input type="number" id="add-recurrence" value="12" min="0" max="120" placeholder="0 = jednorazowe">
+                    <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="add-is-oneoff" style="cursor:pointer;width:15px;height:15px;">
+                        <label for="add-is-oneoff" style="font-size:0.8rem;color:var(--text-secondary);cursor:pointer;user-select:none;margin-bottom:0;font-weight:500;">
+                            Alert jednorazowy (brak automatycznego odnawiania)
+                        </label>
+                    </div>
                 </div>
             </div>
             <div class="form-group">
@@ -1618,6 +1663,35 @@ async function showAddReminderModal(prefillCategory) {
                 }
             });
 
+            // Recurrence one-off checkbox toggle
+            const addRecurrenceInput = body.querySelector('#add-recurrence');
+            const addIsOneOffCheckbox = body.querySelector('#add-is-oneoff');
+
+            if (addIsOneOffCheckbox && addRecurrenceInput) {
+                addIsOneOffCheckbox.addEventListener('change', () => {
+                    if (addIsOneOffCheckbox.checked) {
+                        addRecurrenceInput.dataset.prevVal = addRecurrenceInput.value || '12';
+                        addRecurrenceInput.value = '0';
+                        addRecurrenceInput.disabled = true;
+                        addRecurrenceInput.style.opacity = '0.6';
+                    } else {
+                        addRecurrenceInput.disabled = false;
+                        addRecurrenceInput.style.opacity = '1';
+                        addRecurrenceInput.value = (addRecurrenceInput.dataset.prevVal && addRecurrenceInput.dataset.prevVal !== '0') ? addRecurrenceInput.dataset.prevVal : '12';
+                    }
+                });
+                addRecurrenceInput.addEventListener('input', () => {
+                    const val = parseInt(addRecurrenceInput.value) || 0;
+                    if (val === 0) {
+                        addIsOneOffCheckbox.checked = true;
+                        addRecurrenceInput.disabled = true;
+                        addRecurrenceInput.style.opacity = '0.6';
+                    } else {
+                        addIsOneOffCheckbox.checked = false;
+                    }
+                });
+            }
+
             // Alert chip add
             const chipsContainer = body.querySelector('#add-alert-chips');
             body.querySelector('#add-alert-chip-btn').addEventListener('click', () => {
@@ -1658,7 +1732,8 @@ async function showAddReminderModal(prefillCategory) {
                 const categoryId = body.querySelector('#add-category').value;
                 const subType = body.querySelector('#add-subtype').value;
                 const expiryStr = body.querySelector('#add-expiry').value;
-                const recurrence = parseInt(body.querySelector('#add-recurrence').value) || 0;
+                const isOneOff = addIsOneOffCheckbox?.checked || false;
+                const recurrence = isOneOff ? 0 : (parseInt(addRecurrenceInput?.value) || 0);
                 const email1 = body.querySelector('#add-email1').value.trim();
                 const email2 = body.querySelector('#add-email2').value.trim();
                 const description = body.querySelector('#add-description').value.trim();
@@ -1694,6 +1769,7 @@ async function showAddReminderModal(prefillCategory) {
                         expiryDate: new Date(expiryStr),
                         alertDays,
                         recurrenceMonths: recurrence,
+                        isOneOff: isOneOff || recurrence === 0,
                         notes: description,
                         isShared: isShared,
                         createdByName: currentUser?.displayName || currentUser?.email?.split('@')[0] || '',

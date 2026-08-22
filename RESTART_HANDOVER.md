@@ -61,7 +61,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v37` w `service-worker.js` oraz podbito wersje w `index.html` (`v=37`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v38` w `service-worker.js` oraz podbito wersje w `index.html` (`v=38`).
  7. **Konwersja Alertów Prywatnych na Zespołowe:**
    - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
  8. **Baner PWA i Instrukcja dla iOS oraz Mac:**
@@ -97,6 +97,10 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Dodano metody `getUserCustomEmails()`, `addUserCustomEmail(email)` i `removeUserCustomEmail(email)` w `db.js`.
    - Zintegrowano dropdowny wyboru e-mail w oknach dodawania i edycji alertów (dedykowana grupa `📋 Moje prywatne adresy e-mail`).
    - Dodano panel zarządzania prywatnymi adresami e-mail w zakładce *Ustawienia* (przeglądanie, dodawanie, usuwanie) z natychmiastową synchronizacją między urządzeniami.
+ 16. **Obsługa Alertów Jednorazowych (Brak automatycznego odnawiania):**
+   - Dodano dedykowany checkbox `Alert jednorazowy (brak automatycznego odnawiania)` pod polem interwału powtarzania we wszystkich oknach tworzenia i edycji alertów (`app.js`, `team-alerts.js`).
+   - Zapewniono dwukierunkową synchronizację stanu formularza: zaznaczenie checkboxa blokuje pole liczbowe i ustawia interwał na 0 mies., a wpisanie wartości `0` automatycznie zaznacza checkbox.
+   - Alert jednorazowy po oznaczeniu jako wykonany przechodzi bezpośrednio w stan `completed` bez wyliczania kolejnego cyklu.
 
 ---
 
