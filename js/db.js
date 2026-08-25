@@ -858,13 +858,14 @@ export async function addSharedAlert(data) {
 
     const participantUids = cleanParticipants.map(p => p.uid).filter(Boolean);
     const userInfo = getCurrentUserInfo();
+    const currentUid = userInfo.uid || uid() || 'anon';
 
     const initialHistory = [{
         type: 'created',
         timestamp: Timestamp.now(),
         note: 'Utworzenie alertu zespołowego',
         expiryDate: expiryTimestamp,
-        byUid: userInfo.uid,
+        byUid: currentUid,
         byName: String(data.createdByName || userInfo.name).trim(),
         byEmail: userInfo.email
     }];
@@ -886,9 +887,11 @@ export async function addSharedAlert(data) {
         alertDays: alertDays,
         alertFlags: buildAlertFlags(alertDays),
         recurrenceMonths: parseInt(data.recurrenceMonths) || 0,
+        isOneOff: Boolean(data.isOneOff || (parseInt(data.recurrenceMonths) || 0) === 0),
         notes: String(data.notes || data.description || '').trim(),
         createdBy: currentUid,
-        createdByName: String(data.createdByName || auth.currentUser?.displayName || auth.currentUser?.email || '').trim(),
+        createdByName: String(data.createdByName || userInfo.name || auth.currentUser?.displayName || auth.currentUser?.email || '').trim(),
+        createdByEmail: userInfo.email,
         participants: cleanParticipants,
         participantUids: participantUids,
         history: initialHistory,

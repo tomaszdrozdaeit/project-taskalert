@@ -61,7 +61,7 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Rozwiązano błąd `Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.`.
    - Zastąpiono wywołania konstruktora `new Notification(...)` bezpiecznym helperem `displayNotification()` wykorzystującym `ServiceWorkerRegistration.showNotification()`.
  6. **Wersjonowanie Cache Service Workera:**
-   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v38` w `service-worker.js` oraz podbito wersje w `index.html` (`v=38`).
+   - Zaktualizowano nazwę pamięci podręcznej do `taskalert-v39` w `service-worker.js` oraz podbito wersje w `index.html` (`v=39`).
  7. **Konwersja Alertów Prywatnych na Zespołowe:**
    - Dodano funkcję `convertReminderToTeamAlert` w `db.js` oraz przycisk `👥 Zamień na zespołowy` z modalem wyboru uczestników w `app.js`.
  8. **Baner PWA i Instrukcja dla iOS oraz Mac:**
@@ -101,6 +101,9 @@ Niniejszy plik służy jako kompletny przewodnik dla Agenta AI (oraz dewelopera)
    - Dodano dedykowany checkbox `Alert jednorazowy (brak automatycznego odnawiania)` pod polem interwału powtarzania we wszystkich oknach tworzenia i edycji alertów (`app.js`, `team-alerts.js`).
    - Zapewniono dwukierunkową synchronizację stanu formularza: zaznaczenie checkboxa blokuje pole liczbowe i ustawia interwał na 0 mies., a wpisanie wartości `0` automatycznie zaznacza checkbox.
    - Alert jednorazowy po oznaczeniu jako wykonany przechodzi bezpośrednio w stan `completed` bez wyliczania kolejnego cyklu.
+ 17. **Naprawa błędu zapisu alertu zespołowego (`currentUid is not defined`):**
+   - Zdefiniowano `const currentUid = userInfo.uid || uid() || 'anon'` w funkcji `addSharedAlert` w `db.js`.
+   - Rozszerzono automatyczny zestaw testów `tests/test_syntax.py` o statyczną analizę zakresu zmiennych i weryfikację składni wszystkich 22 plików JS w projekcie.
 
 ---
 
